@@ -27,7 +27,7 @@ button:active{opacity:.8}
   <p id="msg">Checking…</p>
   <div class="code" id="code" hidden></div>
   <button id="copy" hidden>Copy the code</button>
-  <div class="warn" id="warn" hidden>This code <b style="color:var(--text)">expires in 1 hour</b> — send it to Patrick right away (text or Discord is fine).</div>
+  <div class="warn" id="warn" hidden>This code <b style="color:var(--text)">expires in 1 hour</b>, so send it to Patrick right away (text or Discord is fine).</div>
 </div>
 <script>
 const q=new URLSearchParams(location.search);
@@ -37,12 +37,12 @@ if(code){
   code=code.replace(/#_$/,'');
   msg.innerHTML='<span class="ok">Connected!</span> One last thing: copy this code and send it to Patrick.';
   codeEl.textContent=code;codeEl.hidden=false;btn.hidden=false;warn.hidden=false;
-  btn.onclick=async()=>{try{await navigator.clipboard.writeText(code);btn.textContent='Copied — now send it to Patrick'}catch(e){btn.textContent='Press and hold the code above to copy it'}};
+  btn.onclick=async()=>{try{await navigator.clipboard.writeText(code);btn.textContent='Copied. Now send it to Patrick'}catch(e){btn.textContent='Press and hold the code above to copy it'}};
 }else if(q.get('error')){
-  msg.innerHTML='The connection was cancelled or denied ('+(q.get('error_reason')||q.get('error'))+'). No problem — just click Patrick\'s link again and tap Allow.';
+  msg.innerHTML='The connection was cancelled or denied ('+(q.get('error_reason')||q.get('error'))+'). No problem, just click Patrick\'s link again and tap Allow.';
   warn.classList.add('err');
 }else{
-  msg.textContent='Nothing to see here — this page only does something when you arrive via the connection link Patrick sends.';
+  msg.textContent='Nothing to see here. This page only does something when you arrive via the connection link Patrick sends.';
 }
 </script>
 </body>
