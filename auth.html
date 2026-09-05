@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instagram Connection</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{--ground:#0b0d0c;--panel:#141715;--panel2:#1a1e1b;--line:#252b27;--text:#e9ede9;--muted:#9aa49d;--green:#4ade80;--red:#f87171;--amber:#fbbf24}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--text);font-family:'IBM Plex Sans',-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{max-width:520px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px}
+h1{font-family:'Archivo',sans-serif;font-weight:800;font-size:22px;margin:0 0 10px}
+p{color:var(--muted);line-height:1.6;margin:0 0 14px;font-size:14.5px}
+.ok{color:var(--green)}
+.code{font-family:'IBM Plex Mono',monospace;font-size:13px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px;word-break:break-all;margin:0 0 14px;user-select:all}
+button{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:15px;background:var(--green);color:var(--ground);border:none;border-radius:8px;padding:12px 20px;cursor:pointer;width:100%}
+button:active{opacity:.8}
+.warn{border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted);margin-top:14px}
+.err{border-left-color:var(--red)}
+</style>
+</head>
+<body>
+<div class="box" id="box">
+  <h1>Instagram Connection</h1>
+  <p id="msg">Checking…</p>
+  <div class="code" id="code" hidden></div>
+  <button id="copy" hidden>Copy the code</button>
+  <div class="warn" id="warn" hidden>This code <b style="color:var(--text)">expires in 1 hour</b> — send it to Patrick right away (text or Discord is fine).</div>
+</div>
+<script>
+const q=new URLSearchParams(location.search);
+const msg=document.getElementById('msg'),codeEl=document.getElementById('code'),btn=document.getElementById('copy'),warn=document.getElementById('warn');
+let code=q.get('code');
+if(code){
+  code=code.replace(/#_$/,'');
+  msg.innerHTML='<span class="ok">Connected!</span> One last thing: copy this code and send it to Patrick.';
+  codeEl.textContent=code;codeEl.hidden=false;btn.hidden=false;warn.hidden=false;
+  btn.onclick=async()=>{try{await navigator.clipboard.writeText(code);btn.textContent='Copied — now send it to Patrick'}catch(e){btn.textContent='Press and hold the code above to copy it'}};
+}else if(q.get('error')){
+  msg.innerHTML='The connection was cancelled or denied ('+(q.get('error_reason')||q.get('error'))+'). No problem — just click Patrick\'s link again and tap Allow.';
+  warn.classList.add('err');
+}else{
+  msg.textContent='Nothing to see here — this page only does something when you arrive via the connection link Patrick sends.';
+}
+</script>
+</body>
+</html>
