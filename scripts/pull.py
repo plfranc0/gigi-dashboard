@@ -3,7 +3,10 @@
 
 Modes (env MODE):
   hourly  - apidojo/tiktok-scraper, 10 most recent videos + profile stats (~$0.003/run)
-  full    - clockworks/tiktok-scraper, entire catalog (~$0.45/run, weekly)
+  full    - clockworks/tiktok-scraper, entire catalog (~$0.45/run, 1st + 15th)
+  ig      - instagram profile + posts (~$0.02/run, 2x/day). Public IG hides her
+            like counts (likesCount = -1) and photos have no view counts, so this
+            leg is thin until the Meta Graph API connection lands.
 
 Data files written:
   data/videos.json      merged per-video latest stats
@@ -23,6 +26,7 @@ if not TOKEN:
 
 MODE = os.environ.get("MODE", "hourly")
 HANDLE = "gigichahal"
+HANDLE_IG = "gigichahal_"
 DATA = os.path.join(os.path.dirname(__file__), "..", "data")
 
 
@@ -90,12 +94,50 @@ def norm_clockworks(item):
     }
 
 
+def norm_ig(item):
+    likes = item.get("likesCount")
+    return {
+        "id": str(item["id"]),
+        "url": item.get("url") or "",
+        "caption": item.get("caption") or "",
+        "createTime": item.get("timestamp") or "",
+        "duration": item.get("videoDuration"),
+        "type": item.get("type"),
+        "views": item.get("videoPlayCount"),
+        "likes": likes if likes is not None and likes >= 0 else None,
+        "comments": item.get("commentsCount") or 0,
+        "shares": None,
+        "saves": None,
+        "hashtags": item.get("hashtags") or [],
+    }
+
+
 now = datetime.now(timezone.utc)
 now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 today = now.strftime("%Y-%m-%d")
 
+prefix = "ig-" if MODE == "ig" else ""
 profile_stats = None
-if MODE == "full":
+if MODE == "ig":
+    profs = apify("apify~instagram-profile-scraper", {"usernames": [HANDLE_IG]})
+    p0 = next((p for p in profs if not p.get("error")), None)
+    if p0 and p0.get("followersCount"):
+        profile_stats = {
+            "followers": p0["followersCount"],
+            "following": p0.get("followsCount"),
+            "totalVideos": p0.get("postsCount"),
+        }
+    raw = apify(
+        "apify~instagram-scraper",
+        {
+            "directUrls": [f"https://www.instagram.com/{HANDLE_IG}/"],
+            "resultsType": "posts",
+            "resultsLimit": 50,
+            "addParentData": False,
+        },
+    )
+    videos = [norm_ig(v) for v in raw if v.get("id") and not v.get("error")]
+elif MODE == "full":
     raw = apify(
         "clockworks~tiktok-scraper",
         {
@@ -130,29 +172,30 @@ if not videos:
     sys.exit("scrape returned 0 videos - refusing to write")
 
 # merge videos
-store = load("videos.json", {})
+store = load(prefix + "videos.json", {})
 for v in videos:
     prev = store.get(v["id"], {})
     prev.update(v)
     prev["lastSeen"] = now_iso
     store[v["id"]] = prev
-save("videos.json", store)
+save(prefix + "videos.json", store)
 
 # per-video daily view snapshots (latest value wins within a day)
-ts = load("timeseries.json", {})
+ts = load(prefix + "timeseries.json", {})
 for v in videos:
-    ts.setdefault(v["id"], {})[today] = v["views"]
-save("timeseries.json", ts)
+    if v["views"] is not None:
+        ts.setdefault(v["id"], {})[today] = v["views"]
+save(prefix + "timeseries.json", ts)
 
 # follower history
-prof = load("profile.json", {"history": [], "current": {}})
+prof = load(prefix + "profile.json", {"history": [], "current": {}})
 if profile_stats:
     prof["current"] = {**profile_stats, "at": now_iso}
     prof["history"].append({"at": now_iso, "followers": profile_stats["followers"]})
-save("profile.json", prof)
+save(prefix + "profile.json", prof)
 
 meta = load("meta.json", {})
-meta["lastUpdated"] = now_iso
+meta["lastUpdated" if MODE != "ig" else "lastUpdatedIG"] = now_iso
 meta["mode"] = MODE
 if MODE == "full":
     meta["lastFullSweep"] = now_iso

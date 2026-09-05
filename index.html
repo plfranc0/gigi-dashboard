@@ -131,8 +131,11 @@ tr:last-child td{border-bottom:none}
   <aside class="side">
     <div class="logo">gigi<em>.</em></div>
     <nav class="nav">
+      <div class="nav-h">Platform</div>
+      <a href="#" id="p-tiktok" class="on plat">TikTok</a>
+      <a href="#" id="p-ig" class="plat">Instagram</a>
       <div class="nav-h">Analyze</div>
-      <a class="on" href="#">Dashboard</a>
+      <a href="#" style="color:var(--text)">Dashboard</a>
       <a href="#"><span>Insights</span><span class="soon">soon</span></a>
       <div class="nav-h">Create</div>
       <a href="#"><span>Studio</span><span class="soon">soon</span></a>
@@ -149,7 +152,7 @@ tr:last-child td{border-bottom:none}
       <div class="ava">G</div>
       <div class="who">
         <div class="nm">Gigi Chahal</div>
-        <div class="hd"><a href="https://www.tiktok.com/@gigichahal" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">@gigichahal · TikTok</a></div>
+        <div class="hd"><a id="p-link" href="https://www.tiktok.com/@gigichahal" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">@gigichahal · TikTok</a></div>
       </div>
       <div class="prof-stats">
         <div><div class="v" id="p-fol">—</div><div class="k">Followers</div></div>
@@ -158,6 +161,8 @@ tr:last-child td{border-bottom:none}
         <div><div class="v" id="p-views">—</div><div class="k">Total views</div></div>
       </div>
     </div>
+
+    <div class="note" id="ig-note" hidden>Instagram's public data is limited: Gigi has like counts hidden, and photo posts carry no view counts, so several numbers show as "—". The official Instagram connection (Meta login) unlocks likes, saves, shares, and reach here.</div>
 
     <h2>This week <small>— vs the 7 days before</small></h2>
     <div class="cards" id="week"></div>
@@ -222,179 +227,205 @@ const dayOf=iso=>new Date(iso).toLocaleDateString('en-CA',{timeZone:TZ});
 const todayPT=()=>new Date().toLocaleDateString('en-CA',{timeZone:TZ});
 function addDays(d,n){const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
 const md=d=>{const[,m,dd]=d.split('-');return `${+m}/${+dd}`};
-function delta(el,cur,prev){
-  if(prev==null||prev===0)return '<span class="d">—</span>';
+function delta(cur,prev){
+  if(cur==null||prev==null||prev===0)return '<span class="d">—</span>';
   const p=Math.round((cur-prev)/prev*100);
   if(p===0)return '<span class="d">±0%</span>';
   const up=p>0;
   return `<span class="d ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(p)}%</span>`;
 }
+const vals=(a,k)=>a.map(v=>v[k]).filter(x=>x!=null);
+const avg=(a,k)=>{const v=vals(a,k);return v.length?v.reduce((s,x)=>s+x,0)/v.length:null};
+const sum=(a,k)=>{const v=vals(a,k);return v.length?v.reduce((s,x)=>s+x,0):null};
 
 async function j(p){const r=await fetch(p+'?t='+Date.now());if(!r.ok)throw new Error(p+' '+r.status);return r.json()}
 
-(async()=>{
-let meta,videosObj,prof,ts;
-try{
-  [meta,videosObj,prof,ts]=await Promise.all([j('data/meta.json'),j('data/videos.json'),j('data/profile.json'),j('data/timeseries.json')]);
-}catch(e){
-  document.querySelector('.main').insertAdjacentHTML('afterbegin',`<div class="note">Could not load data (${e.message}). If you opened this file locally, view the live site instead.</div>`);
-  return;
+const PLATFORMS={
+  tiktok:{prefix:'',label:'TikTok',handle:'@gigichahal · TikTok',url:'https://www.tiktok.com/@gigichahal',metaKey:'lastUpdated',rank:'views',viewWord:'views'},
+  ig:{prefix:'ig-',label:'Instagram',handle:'@gigichahal_ · Instagram',url:'https://www.instagram.com/gigichahal_/',metaKey:'lastUpdatedIG',rank:'comments',viewWord:'comments'}
+};
+const state={hist:[]};
+
+async function render(pk){
+  const P=PLATFORMS[pk];
+  document.querySelectorAll('.plat').forEach(a=>a.classList.remove('on'));
+  $('p-'+pk).classList.add('on');
+
+  let meta,videosObj,prof,ts;
+  try{
+    [meta,videosObj,prof,ts]=await Promise.all([j('data/meta.json'),j('data/'+P.prefix+'videos.json'),j('data/'+P.prefix+'profile.json'),j('data/'+P.prefix+'timeseries.json')]);
+  }catch(e){
+    document.querySelector('.main').insertAdjacentHTML('afterbegin',`<div class="note">Could not load data (${e.message}). If you opened this file locally, view the live site instead.</div>`);
+    return;
+  }
+  const vids=Object.values(videosObj).filter(v=>v.createTime).sort((a,b)=>b.createTime.localeCompare(a.createTime));
+  const today=todayPT();
+  const isIG=pk==='ig';
+
+  // header
+  const link=$('p-link');link.textContent=P.handle;link.href=P.url;
+  const updIso=meta[P.metaKey]||meta.lastUpdated;
+  const mins=Math.round((Date.now()-new Date(updIso))/60000);
+  $('upd').textContent=mins<60?`${mins} min ago`:`${Math.round(mins/60)} hr ago`;
+  $('p-fol').textContent=fmt(prof.current.followers);
+  $('p-likes').textContent=fmt(prof.current.totalLikes??sum(vids,'likes'));
+  $('p-vids').textContent=prof.current.totalVideos??vids.length;
+  $('p-views').textContent=fmt(sum(vids,'views'));
+  $('ig-note').hidden=!isIG;
+
+  // this week vs prior
+  const wk=vids.filter(v=>dayOf(v.createTime)>addDays(today,-7));
+  const pw=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-7)&&d>addDays(today,-14)});
+  const weekCard=(k,cur,prev,isCount)=>`<div class="card"><div class="k">${k}</div><div class="v">${isCount?(cur??0):fmt(cur)}</div>${delta(cur,prev)}</div>`;
+  $('week').innerHTML=
+    weekCard('Posts',wk.length,pw.length,true)+
+    weekCard('Avg views',avg(wk,'views'),avg(pw,'views'))+
+    weekCard('Avg likes',avg(wk,'likes'),avg(pw,'likes'))+
+    (isIG?weekCard('Avg comments',avg(wk,'comments'),avg(pw,'comments')):weekCard('Avg saves',avg(wk,'saves'),avg(pw,'saves')));
+
+  // best & worst
+  const bw=$('bw');
+  const rank=v=>v[P.rank]??0;
+  if(wk.length){
+    const best=[...wk].sort((a,b)=>rank(b)-rank(a))[0];
+    const mature=wk.filter(v=>Date.now()-new Date(v.createTime)>48*3600*1000);
+    const worst=(mature.length?[...mature]:[...wk]).sort((a,b)=>rank(a)-rank(b))[0];
+    const nums=v=>[['views','views'],['likes','likes'],['comments','comments'],['saves','saves'],['shares','shares']]
+      .filter(([k])=>v[k]!=null).map(([k,l])=>`${fmt(v[k])} ${l}`).join(' · ');
+    const card=(v,tag,cls)=>`<div class="card ${cls}"><div class="tag">${tag}</div><div class="cap">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</div><div class="nums">${nums(v)}</div><div style="margin-top:8px"><a href="${v.url}" target="_blank" rel="noopener">View on ${P.label} ↗</a></div></div>`;
+    bw.innerHTML=card(best,'Best performer','')+(worst.id!==best.id?card(worst,'Worst performer','worst'):'');
+  }else{
+    bw.innerHTML=`<div class="note" style="grid-column:1/-1">No posts in the last 7 days on ${P.label}.</div>`;
+  }
+
+  // posts per day 30d
+  const days30=[...Array(30)].map((_,i)=>addDays(today,i-29));
+  const postCount={};vids.forEach(v=>{const d=dayOf(v.createTime);postCount[d]=(postCount[d]||0)+1});
+  const posts30=days30.map(d=>postCount[d]||0);
+  const missed=posts30.filter(n=>n===0).length;
+  const v30=vids.filter(v=>dayOf(v.createTime)>addDays(today,-30));
+  const vPrev30=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-30)&&d>addDays(today,-60)});
+  const perPost=isIG?'comments':'views';
+  $('thirty').innerHTML=
+    `<div class="card"><div class="k">${perPost} (posts this period)</div><div class="v">${fmt(sum(v30,perPost))}</div>${delta(sum(v30,perPost),sum(vPrev30,perPost))}</div>`+
+    `<div class="card"><div class="k">Posts</div><div class="v">${v30.length}</div>${delta(v30.length,vPrev30.length)}</div>`+
+    `<div class="card"><div class="k">Avg ${perPost} / post</div><div class="v">${fmt(avg(v30,perPost))}</div>${delta(avg(v30,perPost),avg(vPrev30,perPost))}</div>`+
+    `<div class="card"><div class="k">Days missed</div><div class="v">${missed}</div><div class="d">of 30</div></div>`;
+  const maxP=Math.max(...posts30,1);
+  $('postbars').innerHTML=posts30.map(n=>`<div class="b${n?'':' zero'}" style="height:${Math.max(4,n/maxP*100)}%"></div>`).join('');
+  [...$('postbars').children].forEach((b,i)=>hook(b,`${md(days30[i])}\n${posts30[i]} post${posts30[i]===1?'':'s'}`));
+  $('postbx').innerHTML=days30.map((d,i)=>`<span>${i%5===0?md(d):''}</span>`).join('');
+
+  // views gained per day (from timeseries snapshots)
+  const vw=$('viewswrap');
+  const dates=[...new Set(Object.values(ts).flatMap(o=>Object.keys(o)))].sort();
+  const totalByDate=dates.map(d=>Object.values(ts).reduce((s,o)=>{
+    const ks=Object.keys(o).filter(k=>k<=d).sort();
+    return s+(ks.length?o[ks[ks.length-1]]:0);
+  },0));
+  const gains=dates.slice(1).map((d,i)=>({d,g:totalByDate[i+1]-totalByDate[i]}));
+  if(gains.length){
+    const maxG=Math.max(...gains.map(x=>Math.abs(x.g)),1);
+    vw.innerHTML=`<div class="bars" id="viewbars"></div><div class="bx" id="viewbx"></div><div class="legendline">Daily change in total catalog views.</div>`;
+    $('viewbars').innerHTML=gains.map(x=>`<div class="b${x.g?'':' zero'}" style="height:${Math.max(4,Math.abs(x.g)/maxG*100)}%${x.g<0?';background:var(--red)':''}"></div>`).join('');
+    [...$('viewbars').children].forEach((b,i)=>hook(b,`${md(gains[i].d)}\n${gains[i].g>=0?'+':''}${fmt(gains[i].g)} views`));
+    $('viewbx').innerHTML=gains.map((x,i)=>`<span>${gains.length<15||i%3===0?md(x.d):''}</span>`).join('');
+  }else{
+    vw.innerHTML=`<div class="note" style="margin-top:0">${isIG?'Instagram photo posts have no public view counts — this chart fills in once she posts reels (or once the official Instagram connection is live).':'First bar appears tomorrow — this chart needs two daily snapshots to show a change.'}</div>`;
+  }
+
+  // follower growth
+  const hist=prof.history||[];
+  state.hist=hist;
+  const byDayFol={};hist.forEach(h=>{byDayFol[dayOf(h.at)]=h.followers});
+  const folDays=Object.keys(byDayFol).sort();
+  if(hist.length){
+    const first=hist[0],last=hist[hist.length-1];
+    const since=(nd)=>{const cut=addDays(today,-nd);const pts=hist.filter(h=>dayOf(h.at)<=cut);return pts.length?last.followers-pts[pts.length-1].followers:null};
+    const g7=since(7),g30=since(30);
+    $('folcards').innerHTML=
+      `<div class="card"><div class="k">Followers</div><div class="v">${last.followers.toLocaleString()}</div></div>`+
+      `<div class="card"><div class="k">Last 7 days</div><div class="v">${g7==null?'—':(g7>=0?'+':'')+fmt(g7)}</div>${g7==null?'<div class="d">accumulating</div>':''}</div>`+
+      `<div class="card"><div class="k">Last 30 days</div><div class="v">${g30==null?'—':(g30>=0?'+':'')+fmt(g30)}</div>${g30==null?'<div class="d">accumulating</div>':''}</div>`+
+      `<div class="card"><div class="k">Since tracking began</div><div class="v">${(last.followers-first.followers>=0?'+':'')+(last.followers-first.followers).toLocaleString()}</div><div class="d">${dayOf(first.at)}</div></div>`;
+    const svg=$('folchart');
+    const W=svg.clientWidth||800,H=150,Pp=8;
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+    const fv=hist.map(h=>h.followers);
+    const lo=Math.min(...fv),hi=Math.max(...fv),span=Math.max(hi-lo,10);
+    const X=i=>hist.length<2?W/2:Pp+i/(hist.length-1)*(W-2*Pp);
+    const Y=v=>H-Pp-((v-lo)/span)*(H-2*Pp);
+    const pts=hist.map((h,i)=>`${X(i)},${Y(h.followers)}`).join(' ');
+    svg.innerHTML=`
+      <polyline points="${Pp},${H-Pp} ${W-Pp},${H-Pp}" stroke="var(--line)" stroke-width="1" fill="none"/>
+      ${hist.length>1?`<polygon points="${Pp},${H-Pp} ${pts} ${W-Pp},${H-Pp}" fill="var(--h2)" opacity=".5"/>`:''}
+      <polyline points="${pts}" stroke="var(--green)" stroke-width="2" fill="none" stroke-linejoin="round"/>
+      <circle cx="${X(hist.length-1)}" cy="${Y(last.followers)}" r="4" fill="var(--green)" stroke="var(--ground)" stroke-width="2"/>
+      <text x="${Pp}" y="${Y(lo)-4}">${lo.toLocaleString()}</text>
+      <text x="${Pp}" y="12">${hi.toLocaleString()}</text>`;
+  }
+
+  // daily channel metrics table
+  let rows='<tr><th style="text-align:left">Date</th><th>Gained</th><th>Followers</th><th>Posts</th></tr>';
+  [...folDays].reverse().slice(0,14).forEach(d=>{
+    const prev=folDays[folDays.indexOf(d)-1];
+    const gain=prev!=null?byDayFol[d]-byDayFol[prev]:null;
+    rows+=`<tr><td>${new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td><td class="${gain>0?'pos':''}">${gain==null?'—':(gain>=0?'+':'')+gain.toLocaleString()}</td><td>${byDayFol[d].toLocaleString()}</td><td>${postCount[d]||0}</td></tr>`;
+  });
+  $('dailytbl').innerHTML=rows;
+
+  // heatmap (last ~24 weeks)
+  const hmWeeks=24;
+  const endDow=new Date(today+'T12:00:00Z').getUTCDay();
+  const cells=[];
+  const start=addDays(today,-(hmWeeks*7-1)-endDow);
+  for(let i=0;i<hmWeeks*7;i++){const d=addDays(start,i);if(d>today)break;cells.push(d)}
+  $('hmrange').textContent=`— ${md(cells[0])} to ${md(today)}`;
+  $('hm').innerHTML=cells.map(d=>{
+    const n=postCount[d]||0;
+    const l=n===0?0:n===1?1:n===2?2:n<=4?3:4;
+    return `<div class="c l${l}" data-d="${d}" data-n="${n}">${n||''}</div>`;
+  }).join('');
+  [...$('hm').children].forEach(c=>hook(c,`${c.dataset.d}\n${c.dataset.n} post${c.dataset.n==='1'?'':'s'}`));
+
+  // video table
+  let sortKey='createTime',sortDir=-1,showAll=false;
+  const cols=[['createTime','Date'],['caption','Post'],['views','Views'],['likes','Likes'],['comments','Comments'],['shares','Shares'],['saves','Saves'],['duration','Sec']];
+  function renderTbl(){
+    const sorted=[...vids].sort((a,b)=>{
+      const x=a[sortKey]??-1,y=b[sortKey]??-1;
+      return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;
+    });
+    const list=showAll?sorted:sorted.slice(0,25);
+    let h='<tr>'+cols.map(([k,l])=>`<th data-k="${k}">${l}${sortKey===k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('')+'</tr>';
+    list.forEach(v=>{
+      h+=`<tr><td>${md(dayOf(v.createTime))}</td><td class="cap"><a href="${v.url}" target="_blank" rel="noopener">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</a></td><td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td><td>${fmt(v.comments)}</td><td>${fmt(v.shares)}</td><td>${fmt(v.saves)}</td><td>${v.duration!=null?Math.round(v.duration):'—'}</td></tr>`;
+    });
+    $('vidtbl').innerHTML=h;
+    $('more').textContent=showAll?'Show top 25':`Show all ${vids.length}`;
+    $('more').hidden=vids.length<=25;
+    [...$('vidtbl').querySelectorAll('th')].forEach(th=>th.onclick=()=>{
+      const k=th.dataset.k;
+      if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=k==='caption'?1:-1}
+      renderTbl();
+    });
+  }
+  renderTbl();
+  $('more').onclick=()=>{showAll=!showAll;renderTbl()};
 }
-const vids=Object.values(videosObj).filter(v=>v.createTime).sort((a,b)=>b.createTime.localeCompare(a.createTime));
-const today=todayPT();
 
-// header
-const upd=new Date(meta.lastUpdated);
-const mins=Math.round((Date.now()-upd)/60000);
-$('upd').textContent=mins<60?`${mins} min ago`:`${Math.round(mins/60)} hr ago`;
-$('p-fol').textContent=fmt(prof.current.followers);
-$('p-likes').textContent=fmt(prof.current.totalLikes??vids.reduce((s,v)=>s+v.likes,0));
-$('p-vids').textContent=prof.current.totalVideos??vids.length;
-$('p-views').textContent=fmt(vids.reduce((s,v)=>s+v.views,0));
-
-// this week vs prior
-const wk=vids.filter(v=>dayOf(v.createTime)>addDays(today,-7));
-const pw=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-7)&&d>addDays(today,-14)});
-const avg=(a,k)=>a.length?a.reduce((s,v)=>s+v[k],0)/a.length:null;
-const weekCard=(k,cur,prev,isCount)=>`<div class="card"><div class="k">${k}</div><div class="v">${isCount?(cur??0):fmt(cur)}</div>${delta(null,cur??0,prev)}</div>`;
-$('week').innerHTML=
-  weekCard('Videos posted',wk.length,pw.length,true)+
-  weekCard('Avg views',avg(wk,'views'),avg(pw,'views'))+
-  weekCard('Avg likes',avg(wk,'likes'),avg(pw,'likes'))+
-  weekCard('Avg saves',avg(wk,'saves'),avg(pw,'saves'));
-
-// best & worst
-const bw=$('bw');
-if(wk.length){
-  const best=[...wk].sort((a,b)=>b.views-a.views)[0];
-  // a video posted in the last 48h hasn't had time to accumulate views - not fair to call it "worst"
-  const mature=wk.filter(v=>Date.now()-new Date(v.createTime)>48*3600*1000);
-  const worst=(mature.length?[...mature]:[...wk]).sort((a,b)=>a.views-b.views)[0];
-  const card=(v,tag,cls)=>`<div class="card ${cls}"><div class="tag">${tag}</div><div class="cap">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</div><div class="nums">${fmt(v.views)} views · ${fmt(v.likes)} likes · ${fmt(v.saves)} saves · ${fmt(v.shares)} shares</div><div style="margin-top:8px"><a href="${v.url}" target="_blank" rel="noopener">View on TikTok ↗</a></div></div>`;
-  bw.innerHTML=card(best,'Best performer','')+(worst.id!==best.id?card(worst,'Worst performer','worst'):'');
-}else{
-  bw.innerHTML='<div class="note" style="grid-column:1/-1">No videos posted in the last 7 days.</div>';
-}
-
-// posts per day 30d
-const days30=[...Array(30)].map((_,i)=>addDays(today,i-29));
-const postCount={};vids.forEach(v=>{const d=dayOf(v.createTime);postCount[d]=(postCount[d]||0)+1});
-const posts30=days30.map(d=>postCount[d]||0);
-const missed=posts30.filter(n=>n===0).length;
-const v30=vids.filter(v=>dayOf(v.createTime)>addDays(today,-30));
-const vPrev30=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-30)&&d>addDays(today,-60)});
-const sum=(a,k)=>a.reduce((s,v)=>s+v[k],0);
-$('thirty').innerHTML=
-  `<div class="card"><div class="k">Views (posts this period)</div><div class="v">${fmt(sum(v30,'views'))}</div>${delta(null,sum(v30,'views'),sum(vPrev30,'views'))}</div>`+
-  `<div class="card"><div class="k">Videos posted</div><div class="v">${v30.length}</div>${delta(null,v30.length,vPrev30.length)}</div>`+
-  `<div class="card"><div class="k">Avg views / post</div><div class="v">${fmt(avg(v30,'views'))}</div>${delta(null,avg(v30,'views'),avg(vPrev30,'views'))}</div>`+
-  `<div class="card"><div class="k">Days missed</div><div class="v">${missed}</div><div class="d">of 30</div></div>`;
-const maxP=Math.max(...posts30,1);
-$('postbars').innerHTML=posts30.map(n=>`<div class="b${n?'':' zero'}" style="height:${Math.max(4,n/maxP*100)}%"></div>`).join('');
-[...$('postbars').children].forEach((b,i)=>hook(b,`${md(days30[i])}\n${posts30[i]} post${posts30[i]===1?'':'s'}`));
-$('postbx').innerHTML=days30.map((d,i)=>`<span>${i%5===0?md(d):''}</span>`).join('');
-
-// views gained per day (from timeseries snapshots)
-const dates=[...new Set(Object.values(ts).flatMap(o=>Object.keys(o)))].sort();
-const totalByDate=dates.map(d=>Object.values(ts).reduce((s,o)=>{
-  const ks=Object.keys(o).filter(k=>k<=d).sort();
-  return s+(ks.length?o[ks[ks.length-1]]:0);
-},0));
-const gains=dates.slice(1).map((d,i)=>({d,g:totalByDate[i+1]-totalByDate[i]}));
-if(gains.length){
-  const maxG=Math.max(...gains.map(x=>Math.abs(x.g)),1);
-  $('viewbars').innerHTML=gains.map(x=>`<div class="b${x.g?'':' zero'}" style="height:${Math.max(4,Math.abs(x.g)/maxG*100)}%${x.g<0?';background:var(--red)':''}"></div>`).join('');
-  [...$('viewbars').children].forEach((b,i)=>hook(b,`${md(gains[i].d)}\n${gains[i].g>=0?'+':''}${fmt(gains[i].g)} views`));
-  $('viewbx').innerHTML=gains.map((x,i)=>`<span>${gains.length<15||i%3===0?md(x.d):''}</span>`).join('');
-}else{
-  $('viewbars').outerHTML='<div class="note">First bar appears tomorrow — this chart needs two daily snapshots to show a change.</div>';
-  $('viewbx').remove();
-}
-
-// follower growth
-const hist=prof.history;
-const byDayFol={};hist.forEach(h=>{byDayFol[dayOf(h.at)]=h.followers});
-const folDays=Object.keys(byDayFol).sort();
-const first=hist[0],last=hist[hist.length-1];
-const since=(nd)=>{const cut=addDays(today,-nd);const pts=hist.filter(h=>dayOf(h.at)<=cut);return pts.length?last.followers-pts[pts.length-1].followers:null};
-const g7=since(7),g30=since(30);
-$('folcards').innerHTML=
-  `<div class="card"><div class="k">Followers</div><div class="v">${last.followers.toLocaleString()}</div></div>`+
-  `<div class="card"><div class="k">Last 7 days</div><div class="v">${g7==null?'—':(g7>=0?'+':'')+fmt(g7)}</div>${g7==null?'<div class="d">accumulating</div>':''}</div>`+
-  `<div class="card"><div class="k">Last 30 days</div><div class="v">${g30==null?'—':(g30>=0?'+':'')+fmt(g30)}</div>${g30==null?'<div class="d">accumulating</div>':''}</div>`+
-  `<div class="card"><div class="k">Since tracking began</div><div class="v">${(last.followers-first.followers>=0?'+':'')+(last.followers-first.followers).toLocaleString()}</div><div class="d">${dayOf(first.at)}</div></div>`;
-const svg=$('folchart');
-const W=svg.clientWidth||800,H=150,P=8;
-svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-const vals=hist.map(h=>h.followers);
-const lo=Math.min(...vals),hi=Math.max(...vals),span=Math.max(hi-lo,10);
-const X=i=>hist.length<2?W/2:P+i/(hist.length-1)*(W-2*P);
-const Y=v=>H-P-((v-lo)/span)*(H-2*P);
-const pts=hist.map((h,i)=>`${X(i)},${Y(h.followers)}`).join(' ');
-svg.innerHTML=`
-  <polyline points="${P},${H-P} ${W-P},${H-P}" stroke="var(--line)" stroke-width="1" fill="none"/>
-  ${hist.length>1?`<polygon points="${P},${H-P} ${pts} ${W-P},${H-P}" fill="var(--h2)" opacity=".5"/>`:''}
-  <polyline points="${pts}" stroke="var(--green)" stroke-width="2" fill="none" stroke-linejoin="round"/>
-  <circle cx="${X(hist.length-1)}" cy="${Y(last.followers)}" r="4" fill="var(--green)" stroke="var(--ground)" stroke-width="2"/>
-  <text x="${P}" y="${Y(lo)-4}">${lo.toLocaleString()}</text>
-  <text x="${P}" y="12">${hi.toLocaleString()}</text>`;
-svg.addEventListener('mousemove',e=>{
+$('folchart').addEventListener('mousemove',e=>{
+  const hist=state.hist;
+  if(!hist.length)return;
+  const svg=$('folchart');
   const r=svg.getBoundingClientRect();
-  const i=Math.round((e.clientX-r.left-P)/(r.width-2*P)*(hist.length-1));
+  const i=Math.round((e.clientX-r.left-8)/(r.width-16)*(hist.length-1));
   if(i>=0&&i<hist.length){const h=hist[i];showTip(e,`${h.at.slice(0,16).replace('T',' ')} UTC\n${h.followers.toLocaleString()} followers`)}
 });
-svg.addEventListener('mouseleave',hideTip);
-
-// daily channel metrics table
-let rows='<tr><th style="text-align:left">Date</th><th>Gained</th><th>Followers</th><th>Posts</th></tr>';
-const fd=[...folDays].reverse().slice(0,14);
-fd.forEach((d,i)=>{
-  const prev=folDays[folDays.indexOf(d)-1];
-  const gain=prev!=null?byDayFol[d]-byDayFol[prev]:null;
-  rows+=`<tr><td>${new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td><td class="${gain>0?'pos':''}">${gain==null?'—':(gain>=0?'+':'')+gain.toLocaleString()}</td><td>${byDayFol[d].toLocaleString()}</td><td>${postCount[d]||0}</td></tr>`;
-});
-$('dailytbl').innerHTML=rows;
-
-// heatmap (last ~24 weeks)
-const hmWeeks=24;
-const end=today;
-const endDow=new Date(end+'T12:00:00Z').getUTCDay();
-const cells=[];
-const start=addDays(end,-(hmWeeks*7-1)-endDow);
-for(let i=0;i<hmWeeks*7;i++){const d=addDays(start,i);if(d>end)break;cells.push(d)}
-$('hmrange').textContent=`— ${md(cells[0])} to ${md(end)}`;
-$('hm').innerHTML=cells.map(d=>{
-  const n=postCount[d]||0;
-  const l=n===0?0:n===1?1:n===2?2:n<=4?3:4;
-  return `<div class="c l${l}" data-d="${d}" data-n="${n}">${n||''}</div>`;
-}).join('');
-[...$('hm').children].forEach(c=>hook(c,`${c.dataset.d}\n${c.dataset.n} post${c.dataset.n==='1'?'':'s'}`));
-
-// totals cards under heatmap? add shares/comments to thirty? keep table
-// video table
-let sortKey='createTime',sortDir=-1,showAll=false;
-const cols=[['createTime','Date'],['caption','Video'],['views','Views'],['likes','Likes'],['comments','Comments'],['shares','Shares'],['saves','Saves'],['duration','Sec']];
-function renderTbl(){
-  const sorted=[...vids].sort((a,b)=>{
-    const x=a[sortKey]??0,y=b[sortKey]??0;
-    return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;
-  });
-  const list=showAll?sorted:sorted.slice(0,25);
-  let h='<tr>'+cols.map(([k,l])=>`<th data-k="${k}">${l}${sortKey===k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('')+'</tr>';
-  list.forEach(v=>{
-    h+=`<tr><td>${md(dayOf(v.createTime))}</td><td class="cap"><a href="${v.url}" target="_blank" rel="noopener">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</a></td><td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td><td>${fmt(v.comments)}</td><td>${fmt(v.shares)}</td><td>${fmt(v.saves)}</td><td>${v.duration!=null?Math.round(v.duration):'—'}</td></tr>`;
-  });
-  $('vidtbl').innerHTML=h;
-  $('more').textContent=showAll?'Show top 25':`Show all ${vids.length}`;
-  [...$('vidtbl').querySelectorAll('th')].forEach(th=>th.onclick=()=>{
-    const k=th.dataset.k;
-    if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=k==='caption'?1:-1}
-    renderTbl();
-  });
-}
-renderTbl();
-$('more').onclick=()=>{showAll=!showAll;renderTbl()};
-})();
+$('folchart').addEventListener('mouseleave',hideTip);
+$('p-tiktok').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');render('tiktok')};
+$('p-ig').onclick=e=>{e.preventDefault();history.replaceState(null,'','#ig');render('ig')};
+render(location.hash==='#ig'?'ig':'tiktok');
 </script>
 </body>
 </html>
