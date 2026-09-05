@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gigi Growth Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#0b0d0c; --panel:#141715; --panel2:#1a1e1b; --line:#252b27;
+  --text:#e9ede9; --muted:#9aa49d; --faint:#66716a;
+  --green:#4ade80; --red:#f87171; --amber:#fbbf24;
+  --h1:#142019; --h2:#1d4227; --h3:#2a6d3e; --h4:#3aa65b; --h5:#4ade80;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--text);font-family:'IBM Plex Sans',-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.app{display:flex;min-height:100vh}
+
+/* sidebar */
+.side{width:196px;flex:0 0 196px;border-right:1px solid var(--line);padding:22px 14px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.logo{font-family:'Archivo',sans-serif;font-weight:800;font-size:20px;letter-spacing:-.02em;margin:0 8px 26px}
+.logo em{font-style:normal;color:var(--green)}
+.nav-h{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:18px 8px 6px}
+.nav a{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;text-decoration:none;color:var(--muted);font-weight:500;font-size:13.5px}
+.nav a.on{background:var(--panel2);color:var(--text)}
+.nav a:hover{color:var(--text)}
+.nav .soon{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.08em;color:var(--faint);border:1px solid var(--line);border-radius:99px;padding:1px 6px}
+.side .upd{margin:26px 8px 0;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--faint);line-height:1.6}
+.side .upd b{color:var(--green);font-weight:500}
+
+/* main */
+.main{flex:1;min-width:0;padding:28px 30px 70px;max-width:1060px}
+h1{font-family:'Archivo',sans-serif;font-weight:800;font-size:24px;margin:0 0 2px}
+.pg-sub{color:var(--muted);margin:0 0 22px;font-size:13px}
+h2{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:34px 0 12px}
+h2 small{color:var(--faint);text-transform:none;letter-spacing:0}
+
+/* profile header */
+.prof{display:flex;align-items:center;gap:16px;margin:0 0 8px}
+.ava{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--h3),var(--green));display:flex;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-weight:800;font-size:22px;color:var(--ground)}
+.prof .who .nm{font-family:'Archivo',sans-serif;font-weight:800;font-size:19px}
+.prof .who .hd{color:var(--muted);font-size:13px}
+.prof-stats{display:flex;gap:22px;margin-left:auto;flex-wrap:wrap}
+.prof-stats div{text-align:right}
+.prof-stats .v{font-family:'Archivo',sans-serif;font-weight:800;font-size:19px;font-variant-numeric:tabular-nums}
+.prof-stats .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+.card .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint)}
+.card .v{font-family:'Archivo',sans-serif;font-weight:800;font-size:23px;margin-top:3px;font-variant-numeric:tabular-nums}
+.card .d{font-family:'IBM Plex Mono',monospace;font-size:11px;margin-top:2px;color:var(--faint)}
+.up{color:var(--green)}.down{color:var(--red)}
+
+/* best/worst */
+.bw{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bw .card{border-top:2px solid var(--green)}
+.bw .card.worst{border-top-color:var(--red)}
+.bw .tag{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
+.bw .worst .tag{color:var(--red)}
+.bw .cap{font-weight:600;margin:6px 0 8px;font-size:14.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bw .nums{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted)}
+.bw a{color:var(--green);font-size:12px;text-decoration:none}
+.bw a:hover{text-decoration:underline}
+
+/* charts */
+.chart-wrap{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+.bars{display:flex;align-items:flex-end;gap:3px;height:120px;margin-top:8px}
+.bars .b{flex:1;min-width:3px;background:var(--h4);border-radius:3px 3px 0 0;position:relative;cursor:default;transition:background .1s}
+.bars .b:hover{background:var(--h5)}
+.bars .b.zero{background:var(--panel2);height:2px !important}
+.bx{display:flex;gap:3px;margin-top:6px}
+.bx span{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:var(--faint);overflow:hidden;white-space:nowrap}
+.legendline{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--faint);margin-top:10px}
+.note{border:1px solid var(--line);border-left:3px solid var(--amber);background:var(--panel);border-radius:8px;padding:11px 14px;color:var(--muted);font-size:13px;margin-top:10px}
+svg text{font-family:'IBM Plex Mono',monospace;fill:var(--faint);font-size:9.5px}
+
+/* heatmap */
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,16px);gap:3px;overflow-x:auto;padding-bottom:4px}
+.hm .c{width:16px;height:16px;border-radius:3px;background:var(--panel2);font-family:'IBM Plex Mono',monospace;font-size:8px;display:flex;align-items:center;justify-content:center;color:var(--ground);cursor:default}
+.hm .c.l0{background:var(--panel2);color:transparent}
+.hm .c.l1{background:var(--h2);color:var(--text)}
+.hm .c.l2{background:var(--h3);color:var(--text)}
+.hm .c.l3{background:var(--h4)}
+.hm .c.l4{background:var(--h5)}
+.hm-cap{display:flex;gap:5px;align-items:center;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--faint)}
+.hm-cap i{width:11px;height:11px;border-radius:2px;display:inline-block}
+
+/* table */
+.tblwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th,td{text-align:right;padding:9px 12px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:500;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+th:hover{color:var(--text)}
+td:first-child,th:first-child{text-align:left}
+td.cap{max-width:300px;overflow:hidden;text-overflow:ellipsis;text-align:left}
+td.cap a{text-decoration:none;color:var(--text)}
+td.cap a:hover{color:var(--green)}
+tr:last-child td{border-bottom:none}
+.showmore{display:block;width:100%;background:var(--panel2);border:none;color:var(--muted);font:inherit;padding:9px;cursor:pointer;border-radius:0 0 8px 8px}
+.showmore:hover{color:var(--text)}
+
+/* tooltip */
+#tip{position:fixed;pointer-events:none;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text);z-index:50;display:none;white-space:pre;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+
+/* daily table */
+.mini td,.mini th{padding:7px 12px}
+.mini .pos{color:var(--green)}
+
+@media (max-width:820px){
+  .app{flex-direction:column}
+  .side{width:auto;height:auto;position:static;display:flex;align-items:center;gap:4px;padding:12px 14px;border-right:none;border-bottom:1px solid var(--line);overflow-x:auto}
+  .logo{margin:0 10px 0 0;font-size:16px}
+  .nav-h,.side .upd{display:none}
+  .nav{display:flex;gap:2px}
+  .nav a{padding:6px 9px;font-size:12.5px;white-space:nowrap}
+  .main{padding:18px 14px 60px}
+  .prof-stats{margin-left:0;gap:14px}
+  .prof{flex-wrap:wrap}
+  .bw{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<div class="app">
+  <aside class="side">
+    <div class="logo">gigi<em>.</em></div>
+    <nav class="nav">
+      <div class="nav-h">Analyze</div>
+      <a class="on" href="#">Dashboard</a>
+      <a href="#"><span>Insights</span><span class="soon">soon</span></a>
+      <div class="nav-h">Create</div>
+      <a href="#"><span>Studio</span><span class="soon">soon</span></a>
+      <a href="#"><span>Cross-posting</span><span class="soon">soon</span></a>
+    </nav>
+    <div class="upd">updated<br><b id="upd">—</b></div>
+  </aside>
+
+  <main class="main">
+    <h1>Dashboard</h1>
+    <p class="pg-sub">Your daily scoreboard.</p>
+
+    <div class="prof">
+      <div class="ava">G</div>
+      <div class="who">
+        <div class="nm">Gigi Chahal</div>
+        <div class="hd"><a href="https://www.tiktok.com/@gigichahal" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">@gigichahal · TikTok</a></div>
+      </div>
+      <div class="prof-stats">
+        <div><div class="v" id="p-fol">—</div><div class="k">Followers</div></div>
+        <div><div class="v" id="p-likes">—</div><div class="k">Total likes</div></div>
+        <div><div class="v" id="p-vids">—</div><div class="k">Videos</div></div>
+        <div><div class="v" id="p-views">—</div><div class="k">Total views</div></div>
+      </div>
+    </div>
+
+    <h2>This week <small>— vs the 7 days before</small></h2>
+    <div class="cards" id="week"></div>
+
+    <h2>Best &amp; worst — last 7 days</h2>
+    <div class="bw" id="bw"></div>
+
+    <h2>Posts per day — last 30 days</h2>
+    <div class="chart-wrap">
+      <div class="cards" style="margin-bottom:14px" id="thirty"></div>
+      <div class="bars" id="postbars"></div>
+      <div class="bx" id="postbx"></div>
+    </div>
+
+    <h2>Views gained per day</h2>
+    <div class="chart-wrap" id="viewswrap">
+      <div class="bars" id="viewbars"></div>
+      <div class="bx" id="viewbx"></div>
+      <div class="legendline">Daily change in total catalog views. Tracking started Sep 5, 2026 — one bar per day from launch.</div>
+    </div>
+
+    <h2>Follower growth</h2>
+    <div class="chart-wrap">
+      <div class="cards" style="margin-bottom:14px" id="folcards"></div>
+      <svg id="folchart" width="100%" height="150" preserveAspectRatio="none"></svg>
+      <div class="legendline" id="follegend">Follower count, hourly. History builds from Sep 5, 2026.</div>
+    </div>
+
+    <h2>Daily channel metrics</h2>
+    <div class="tblwrap"><table class="mini" id="dailytbl"></table></div>
+
+    <h2>Posting heatmap <small id="hmrange"></small></h2>
+    <div class="chart-wrap">
+      <div class="hm" id="hm"></div>
+      <div class="hm-cap">Less <i style="background:var(--panel2)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i> More — number = posts that day</div>
+    </div>
+
+    <h2>Every video <small>— click a column to sort</small></h2>
+    <div class="tblwrap">
+      <table id="vidtbl"></table>
+      <button class="showmore" id="more">Show all</button>
+    </div>
+  </main>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const tip=$('tip');
+function showTip(e,txt){tip.textContent=txt;tip.style.display='block';moveTip(e)}
+function moveTip(e){const w=tip.offsetWidth;let x=e.clientX+12;if(x+w>innerWidth-8)x=e.clientX-w-12;tip.style.left=x+'px';tip.style.top=(e.clientY+12)+'px'}
+function hideTip(){tip.style.display='none'}
+function hook(el,txt){el.addEventListener('mouseenter',e=>showTip(e,txt));el.addEventListener('mousemove',moveTip);el.addEventListener('mouseleave',hideTip)}
+
+const fmt=n=>{
+  if(n==null)return '—';
+  if(Math.abs(n)>=1e6)return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
+  if(Math.abs(n)>=1e3)return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+  return Math.round(n).toLocaleString();
+};
+const TZ='America/Los_Angeles';
+const dayOf=iso=>new Date(iso).toLocaleDateString('en-CA',{timeZone:TZ});
+const todayPT=()=>new Date().toLocaleDateString('en-CA',{timeZone:TZ});
+function addDays(d,n){const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
+const md=d=>{const[,m,dd]=d.split('-');return `${+m}/${+dd}`};
+function delta(el,cur,prev){
+  if(prev==null||prev===0)return '<span class="d">—</span>';
+  const p=Math.round((cur-prev)/prev*100);
+  if(p===0)return '<span class="d">±0%</span>';
+  const up=p>0;
+  return `<span class="d ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(p)}%</span>`;
+}
+
+async function j(p){const r=await fetch(p+'?t='+Date.now());if(!r.ok)throw new Error(p+' '+r.status);return r.json()}
+
+(async()=>{
+let meta,videosObj,prof,ts;
+try{
+  [meta,videosObj,prof,ts]=await Promise.all([j('data/meta.json'),j('data/videos.json'),j('data/profile.json'),j('data/timeseries.json')]);
+}catch(e){
+  document.querySelector('.main').insertAdjacentHTML('afterbegin',`<div class="note">Could not load data (${e.message}). If you opened this file locally, view the live site instead.</div>`);
+  return;
+}
+const vids=Object.values(videosObj).filter(v=>v.createTime).sort((a,b)=>b.createTime.localeCompare(a.createTime));
+const today=todayPT();
+
+// header
+const upd=new Date(meta.lastUpdated);
+const mins=Math.round((Date.now()-upd)/60000);
+$('upd').textContent=mins<60?`${mins} min ago`:`${Math.round(mins/60)} hr ago`;
+$('p-fol').textContent=fmt(prof.current.followers);
+$('p-likes').textContent=fmt(prof.current.totalLikes??vids.reduce((s,v)=>s+v.likes,0));
+$('p-vids').textContent=prof.current.totalVideos??vids.length;
+$('p-views').textContent=fmt(vids.reduce((s,v)=>s+v.views,0));
+
+// this week vs prior
+const wk=vids.filter(v=>dayOf(v.createTime)>addDays(today,-7));
+const pw=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-7)&&d>addDays(today,-14)});
+const avg=(a,k)=>a.length?a.reduce((s,v)=>s+v[k],0)/a.length:null;
+const weekCard=(k,cur,prev,isCount)=>`<div class="card"><div class="k">${k}</div><div class="v">${isCount?(cur??0):fmt(cur)}</div>${delta(null,cur??0,prev)}</div>`;
+$('week').innerHTML=
+  weekCard('Videos posted',wk.length,pw.length,true)+
+  weekCard('Avg views',avg(wk,'views'),avg(pw,'views'))+
+  weekCard('Avg likes',avg(wk,'likes'),avg(pw,'likes'))+
+  weekCard('Avg saves',avg(wk,'saves'),avg(pw,'saves'));
+
+// best & worst
+const bw=$('bw');
+if(wk.length){
+  const best=[...wk].sort((a,b)=>b.views-a.views)[0];
+  // a video posted in the last 48h hasn't had time to accumulate views - not fair to call it "worst"
+  const mature=wk.filter(v=>Date.now()-new Date(v.createTime)>48*3600*1000);
+  const worst=(mature.length?[...mature]:[...wk]).sort((a,b)=>a.views-b.views)[0];
+  const card=(v,tag,cls)=>`<div class="card ${cls}"><div class="tag">${tag}</div><div class="cap">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</div><div class="nums">${fmt(v.views)} views · ${fmt(v.likes)} likes · ${fmt(v.saves)} saves · ${fmt(v.shares)} shares</div><div style="margin-top:8px"><a href="${v.url}" target="_blank" rel="noopener">View on TikTok ↗</a></div></div>`;
+  bw.innerHTML=card(best,'Best performer','')+(worst.id!==best.id?card(worst,'Worst performer','worst'):'');
+}else{
+  bw.innerHTML='<div class="note" style="grid-column:1/-1">No videos posted in the last 7 days.</div>';
+}
+
+// posts per day 30d
+const days30=[...Array(30)].map((_,i)=>addDays(today,i-29));
+const postCount={};vids.forEach(v=>{const d=dayOf(v.createTime);postCount[d]=(postCount[d]||0)+1});
+const posts30=days30.map(d=>postCount[d]||0);
+const missed=posts30.filter(n=>n===0).length;
+const v30=vids.filter(v=>dayOf(v.createTime)>addDays(today,-30));
+const vPrev30=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-30)&&d>addDays(today,-60)});
+const sum=(a,k)=>a.reduce((s,v)=>s+v[k],0);
+$('thirty').innerHTML=
+  `<div class="card"><div class="k">Views (posts this period)</div><div class="v">${fmt(sum(v30,'views'))}</div>${delta(null,sum(v30,'views'),sum(vPrev30,'views'))}</div>`+
+  `<div class="card"><div class="k">Videos posted</div><div class="v">${v30.length}</div>${delta(null,v30.length,vPrev30.length)}</div>`+
+  `<div class="card"><div class="k">Avg views / post</div><div class="v">${fmt(avg(v30,'views'))}</div>${delta(null,avg(v30,'views'),avg(vPrev30,'views'))}</div>`+
+  `<div class="card"><div class="k">Days missed</div><div class="v">${missed}</div><div class="d">of 30</div></div>`;
+const maxP=Math.max(...posts30,1);
+$('postbars').innerHTML=posts30.map(n=>`<div class="b${n?'':' zero'}" style="height:${Math.max(4,n/maxP*100)}%"></div>`).join('');
+[...$('postbars').children].forEach((b,i)=>hook(b,`${md(days30[i])}\n${posts30[i]} post${posts30[i]===1?'':'s'}`));
+$('postbx').innerHTML=days30.map((d,i)=>`<span>${i%5===0?md(d):''}</span>`).join('');
+
+// views gained per day (from timeseries snapshots)
+const dates=[...new Set(Object.values(ts).flatMap(o=>Object.keys(o)))].sort();
+const totalByDate=dates.map(d=>Object.values(ts).reduce((s,o)=>{
+  const ks=Object.keys(o).filter(k=>k<=d).sort();
+  return s+(ks.length?o[ks[ks.length-1]]:0);
+},0));
+const gains=dates.slice(1).map((d,i)=>({d,g:totalByDate[i+1]-totalByDate[i]}));
+if(gains.length){
+  const maxG=Math.max(...gains.map(x=>Math.abs(x.g)),1);
+  $('viewbars').innerHTML=gains.map(x=>`<div class="b${x.g?'':' zero'}" style="height:${Math.max(4,Math.abs(x.g)/maxG*100)}%${x.g<0?';background:var(--red)':''}"></div>`).join('');
+  [...$('viewbars').children].forEach((b,i)=>hook(b,`${md(gains[i].d)}\n${gains[i].g>=0?'+':''}${fmt(gains[i].g)} views`));
+  $('viewbx').innerHTML=gains.map((x,i)=>`<span>${gains.length<15||i%3===0?md(x.d):''}</span>`).join('');
+}else{
+  $('viewbars').outerHTML='<div class="note">First bar appears tomorrow — this chart needs two daily snapshots to show a change.</div>';
+  $('viewbx').remove();
+}
+
+// follower growth
+const hist=prof.history;
+const byDayFol={};hist.forEach(h=>{byDayFol[dayOf(h.at)]=h.followers});
+const folDays=Object.keys(byDayFol).sort();
+const first=hist[0],last=hist[hist.length-1];
+const since=(nd)=>{const cut=addDays(today,-nd);const pts=hist.filter(h=>dayOf(h.at)<=cut);return pts.length?last.followers-pts[pts.length-1].followers:null};
+const g7=since(7),g30=since(30);
+$('folcards').innerHTML=
+  `<div class="card"><div class="k">Followers</div><div class="v">${last.followers.toLocaleString()}</div></div>`+
+  `<div class="card"><div class="k">Last 7 days</div><div class="v">${g7==null?'—':(g7>=0?'+':'')+fmt(g7)}</div>${g7==null?'<div class="d">accumulating</div>':''}</div>`+
+  `<div class="card"><div class="k">Last 30 days</div><div class="v">${g30==null?'—':(g30>=0?'+':'')+fmt(g30)}</div>${g30==null?'<div class="d">accumulating</div>':''}</div>`+
+  `<div class="card"><div class="k">Since tracking began</div><div class="v">${(last.followers-first.followers>=0?'+':'')+(last.followers-first.followers).toLocaleString()}</div><div class="d">${dayOf(first.at)}</div></div>`;
+const svg=$('folchart');
+const W=svg.clientWidth||800,H=150,P=8;
+svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+const vals=hist.map(h=>h.followers);
+const lo=Math.min(...vals),hi=Math.max(...vals),span=Math.max(hi-lo,10);
+const X=i=>hist.length<2?W/2:P+i/(hist.length-1)*(W-2*P);
+const Y=v=>H-P-((v-lo)/span)*(H-2*P);
+const pts=hist.map((h,i)=>`${X(i)},${Y(h.followers)}`).join(' ');
+svg.innerHTML=`
+  <polyline points="${P},${H-P} ${W-P},${H-P}" stroke="var(--line)" stroke-width="1" fill="none"/>
+  ${hist.length>1?`<polygon points="${P},${H-P} ${pts} ${W-P},${H-P}" fill="var(--h2)" opacity=".5"/>`:''}
+  <polyline points="${pts}" stroke="var(--green)" stroke-width="2" fill="none" stroke-linejoin="round"/>
+  <circle cx="${X(hist.length-1)}" cy="${Y(last.followers)}" r="4" fill="var(--green)" stroke="var(--ground)" stroke-width="2"/>
+  <text x="${P}" y="${Y(lo)-4}">${lo.toLocaleString()}</text>
+  <text x="${P}" y="12">${hi.toLocaleString()}</text>`;
+svg.addEventListener('mousemove',e=>{
+  const r=svg.getBoundingClientRect();
+  const i=Math.round((e.clientX-r.left-P)/(r.width-2*P)*(hist.length-1));
+  if(i>=0&&i<hist.length){const h=hist[i];showTip(e,`${h.at.slice(0,16).replace('T',' ')} UTC\n${h.followers.toLocaleString()} followers`)}
+});
+svg.addEventListener('mouseleave',hideTip);
+
+// daily channel metrics table
+let rows='<tr><th style="text-align:left">Date</th><th>Gained</th><th>Followers</th><th>Posts</th></tr>';
+const fd=[...folDays].reverse().slice(0,14);
+fd.forEach((d,i)=>{
+  const prev=folDays[folDays.indexOf(d)-1];
+  const gain=prev!=null?byDayFol[d]-byDayFol[prev]:null;
+  rows+=`<tr><td>${new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td><td class="${gain>0?'pos':''}">${gain==null?'—':(gain>=0?'+':'')+gain.toLocaleString()}</td><td>${byDayFol[d].toLocaleString()}</td><td>${postCount[d]||0}</td></tr>`;
+});
+$('dailytbl').innerHTML=rows;
+
+// heatmap (last ~24 weeks)
+const hmWeeks=24;
+const end=today;
+const endDow=new Date(end+'T12:00:00Z').getUTCDay();
+const cells=[];
+const start=addDays(end,-(hmWeeks*7-1)-endDow);
+for(let i=0;i<hmWeeks*7;i++){const d=addDays(start,i);if(d>end)break;cells.push(d)}
+$('hmrange').textContent=`— ${md(cells[0])} to ${md(end)}`;
+$('hm').innerHTML=cells.map(d=>{
+  const n=postCount[d]||0;
+  const l=n===0?0:n===1?1:n===2?2:n<=4?3:4;
+  return `<div class="c l${l}" data-d="${d}" data-n="${n}">${n||''}</div>`;
+}).join('');
+[...$('hm').children].forEach(c=>hook(c,`${c.dataset.d}\n${c.dataset.n} post${c.dataset.n==='1'?'':'s'}`));
+
+// totals cards under heatmap? add shares/comments to thirty? keep table
+// video table
+let sortKey='createTime',sortDir=-1,showAll=false;
+const cols=[['createTime','Date'],['caption','Video'],['views','Views'],['likes','Likes'],['comments','Comments'],['shares','Shares'],['saves','Saves'],['duration','Sec']];
+function renderTbl(){
+  const sorted=[...vids].sort((a,b)=>{
+    const x=a[sortKey]??0,y=b[sortKey]??0;
+    return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;
+  });
+  const list=showAll?sorted:sorted.slice(0,25);
+  let h='<tr>'+cols.map(([k,l])=>`<th data-k="${k}">${l}${sortKey===k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('')+'</tr>';
+  list.forEach(v=>{
+    h+=`<tr><td>${md(dayOf(v.createTime))}</td><td class="cap"><a href="${v.url}" target="_blank" rel="noopener">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</a></td><td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td><td>${fmt(v.comments)}</td><td>${fmt(v.shares)}</td><td>${fmt(v.saves)}</td><td>${v.duration!=null?Math.round(v.duration):'—'}</td></tr>`;
+  });
+  $('vidtbl').innerHTML=h;
+  $('more').textContent=showAll?'Show top 25':`Show all ${vids.length}`;
+  [...$('vidtbl').querySelectorAll('th')].forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=k==='caption'?1:-1}
+    renderTbl();
+  });
+}
+renderTbl();
+$('more').onclick=()=>{showAll=!showAll;renderTbl()};
+})();
+</script>
+</body>
+</html>

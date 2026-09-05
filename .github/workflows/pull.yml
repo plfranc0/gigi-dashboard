@@ -1,0 +1,52 @@
+name: pull-stats
+
+on:
+  schedule:
+    - cron: '7 * * * *'      # hourly refresh (10 most recent videos)
+    - cron: '37 13 * * 0'    # weekly full catalog sweep, Sunday
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'hourly or full'
+        required: false
+        default: 'hourly'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pull
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide mode
+        id: mode
+        run: |
+          MODE="hourly"
+          if [ "${{ github.event.schedule }}" = "37 13 * * 0" ]; then MODE="full"; fi
+          if [ -n "${{ github.event.inputs.mode }}" ]; then MODE="${{ github.event.inputs.mode }}"; fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Pull stats
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: python3 scripts/pull.py
+
+      - name: Commit data
+        run: |
+          git config user.name "gigi-dashboard-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "data: ${{ steps.mode.outputs.mode }} pull $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase origin main
+            git push
+          fi
