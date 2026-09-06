@@ -2,7 +2,10 @@
 """Pull Gigi's TikTok stats via Apify and merge into data/.
 
 Modes (env MODE):
-  hourly  - apidojo/tiktok-scraper, 10 most recent videos + profile stats (~$0.003/run)
+  recent  - clockworks/tiktok-scraper, 10 most recent videos + profile stats
+            (~$0.037/run, 3x/day = ~$3.40/mo). Was apidojo hourly until 2026-09-06.
+            NOTE: clockworks follower counts are ROUNDED (~nearest 100) - accepted
+            trade-off to stay on the free plan; video stats stay exact.
   full    - clockworks/tiktok-scraper, entire catalog (~$0.45/run, 1st + 15th)
   ig      - instagram profile + posts (~$0.02/run, 2x/day). Public IG hides her
             like counts (likesCount = -1) and photos have no view counts, so this
@@ -17,6 +20,7 @@ Data files written:
 import json
 import os
 import sys
+import time
 import urllib.request
 from datetime import datetime, timezone
 
@@ -24,7 +28,7 @@ TOKEN = os.environ.get("APIFY_TOKEN")
 if not TOKEN:
     sys.exit("APIFY_TOKEN not set")
 
-MODE = os.environ.get("MODE", "hourly")
+MODE = os.environ.get("MODE", "recent")
 HANDLE = "gigichahal"
 HANDLE_IG = "gigichahal_"
 DATA = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -57,24 +61,6 @@ def save(name, obj):
     path = os.path.join(DATA, name)
     with open(path, "w") as f:
         json.dump(obj, f, separators=(",", ":"))
-
-
-def norm_apidojo(item):
-    ch = item.get("channel") or {}
-    vid = item.get("video") or {}
-    return {
-        "id": str(item["id"]),
-        "url": item.get("postPage") or f"https://www.tiktok.com/@{HANDLE}/video/{item['id']}",
-        "caption": item.get("title") or "",
-        "createTime": item.get("uploadedAtFormatted") or "",
-        "duration": vid.get("duration"),
-        "views": item.get("views") or 0,
-        "likes": item.get("likes") or 0,
-        "comments": item.get("comments") or 0,
-        "shares": item.get("shares") or 0,
-        "saves": item.get("bookmarks") or 0,
-        "hashtags": item.get("hashtags") or [],
-    }, ch
 
 
 def norm_clockworks(item):
@@ -117,59 +103,71 @@ now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 today = now.strftime("%Y-%m-%d")
 
 prefix = "ig-" if MODE == "ig" else ""
-profile_stats = None
-if MODE == "ig":
-    profs = apify("apify~instagram-profile-scraper", {"usernames": [HANDLE_IG]})
-    p0 = next((p for p in profs if not p.get("error")), None)
-    if p0 and p0.get("followersCount"):
-        profile_stats = {
-            "followers": p0["followersCount"],
-            "following": p0.get("followsCount"),
-            "totalVideos": p0.get("postsCount"),
-        }
-    raw = apify(
-        "apify~instagram-scraper",
-        {
-            "directUrls": [f"https://www.instagram.com/{HANDLE_IG}/"],
-            "resultsType": "posts",
-            "resultsLimit": 50,
-            "addParentData": False,
-        },
-    )
-    videos = [norm_ig(v) for v in raw if v.get("id") and not v.get("error")]
-elif MODE == "full":
-    raw = apify(
-        "clockworks~tiktok-scraper",
-        {
-            "profiles": [HANDLE],
-            "resultsPerPage": 200,
-            "shouldDownloadVideos": False,
-            "shouldDownloadCovers": False,
-            "shouldDownloadSubtitles": False,
-        },
-    )
-    videos = [norm_clockworks(v) for v in raw if v.get("id")]
-    # clockworks reports ROUNDED follower counts (34500 vs apidojo's exact 34529);
-    # mixing them into the history creates fake jumps, so full mode never touches
-    # profile stats - the hourly apidojo runs keep that series clean.
-else:
-    raw = apify(
-        "apidojo~tiktok-scraper",
-        {"startUrls": [f"https://www.tiktok.com/@{HANDLE}"], "maxItems": 10},
-    )
-    pairs = [norm_apidojo(v) for v in raw if v.get("id")]
-    videos = [p[0] for p in pairs]
-    for _, ch in pairs:
-        if ch.get("followers"):
+
+
+def scrape():
+    profile_stats = None
+    if MODE == "ig":
+        profs = apify("apify~instagram-profile-scraper", {"usernames": [HANDLE_IG]})
+        p0 = next((p for p in profs if not p.get("error")), None)
+        if p0 and p0.get("followersCount"):
             profile_stats = {
-                "followers": ch.get("followers"),
-                "following": ch.get("following"),
-                "totalVideos": ch.get("videos"),
+                "followers": p0["followersCount"],
+                "following": p0.get("followsCount"),
+                "totalVideos": p0.get("postsCount"),
             }
-            break
+        raw = apify(
+            "apify~instagram-scraper",
+            {
+                "directUrls": [f"https://www.instagram.com/{HANDLE_IG}/"],
+                "resultsType": "posts",
+                "resultsLimit": 50,
+                "addParentData": False,
+            },
+        )
+        videos = [norm_ig(v) for v in raw if v.get("id") and not v.get("error")]
+    else:
+        raw = apify(
+            "clockworks~tiktok-scraper",
+            {
+                "profiles": [HANDLE],
+                "resultsPerPage": 200 if MODE == "full" else 10,
+                "shouldDownloadVideos": False,
+                "shouldDownloadCovers": False,
+                "shouldDownloadSubtitles": False,
+            },
+        )
+        videos = [norm_clockworks(v) for v in raw if v.get("id")]
+        # clockworks authorMeta.fans is ROUNDED (~nearest 100). Since 2026-09-06 it is
+        # the only TikTok source (apidojo retired), so the follower history is rounded
+        # from here on - accepted trade-off to stay on the free Apify plan.
+        for item in raw:
+            am = item.get("authorMeta") or {}
+            if am.get("fans"):
+                profile_stats = {
+                    "followers": am.get("fans"),
+                    "following": am.get("following"),
+                    "totalVideos": am.get("video"),
+                }
+                break
+    return videos, profile_stats
+
+
+# the scrapers intermittently return an empty dataset with a clean 200 -
+# retry before concluding the profile really has nothing
+ATTEMPTS = 3
+videos = []
+profile_stats = None
+for attempt in range(1, ATTEMPTS + 1):
+    videos, profile_stats = scrape()
+    if videos:
+        break
+    print(f"attempt {attempt}/{ATTEMPTS}: scrape returned 0 videos", flush=True)
+    if attempt < ATTEMPTS:
+        time.sleep(45)
 
 if not videos:
-    sys.exit("scrape returned 0 videos - refusing to write")
+    sys.exit(f"scrape returned 0 videos after {ATTEMPTS} attempts - refusing to write")
 
 # merge videos
 store = load(prefix + "videos.json", {})

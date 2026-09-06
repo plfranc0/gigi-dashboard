@@ -2,15 +2,15 @@ name: pull-stats
 
 on:
   schedule:
-    - cron: '7 * * * *'       # hourly TikTok refresh (10 most recent videos)
+    - cron: '7 1,15,20 * * *' # TikTok recent-videos refresh 3x/day (~6pm/8am/1pm PT)
     - cron: '37 13 1,15 * *'  # TikTok full catalog sweep, 1st + 15th
     - cron: '22 6,18 * * *'   # Instagram profile + posts, 2x/day
   workflow_dispatch:
     inputs:
       mode:
-        description: 'hourly, full, or ig'
+        description: 'recent, full, or ig'
         required: false
-        default: 'hourly'
+        default: 'recent'
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ jobs:
       - name: Decide mode
         id: mode
         run: |
-          MODE="hourly"
+          MODE="recent"
           if [ "${{ github.event.schedule }}" = "37 13 1,15 * *" ]; then MODE="full"; fi
           if [ "${{ github.event.schedule }}" = "22 6,18 * * *" ]; then MODE="ig"; fi
           if [ -n "${{ github.event.inputs.mode }}" ]; then MODE="${{ github.event.inputs.mode }}"; fi
