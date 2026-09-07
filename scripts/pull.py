@@ -84,6 +84,7 @@ def norm_clockworks(item):
     vm = item.get("videoMeta") or {}
     return {
         "_cover": vm.get("coverUrl"),
+        "_subs": vm.get("subtitleLinks") or [],
         "id": str(item["id"]),
         "url": item.get("webVideoUrl") or f"https://www.tiktok.com/@{HANDLE}/video/{item['id']}",
         "caption": item.get("text") or "",
@@ -147,6 +148,57 @@ def fetch_cover(url, dest):
     return os.path.getsize(dest)
 
 
+def parse_vtt(vtt):
+    """WebVTT -> plain text. TikTok tracks are word-fragments, so join and re-space."""
+    words = []
+    for line in vtt.splitlines():
+        s = line.strip()
+        if not s or s == "WEBVTT" or "-->" in s or s.isdigit():
+            continue
+        words.append(s)
+    return " ".join(" ".join(words).split())
+
+
+def sync_transcripts(videos):
+    """Fetch subtitle tracks for videos we haven't stored yet (TikTok modes only).
+
+    Like cover urls, subtitle downloadLinks are signed and expire in ~48h, so
+    the text is captured at pull time and committed. A video checked and found
+    to have no track is stored as {"t": null} so it is never re-fetched.
+    """
+    store = load("transcripts.json", {})
+    new = none = skipped = 0
+    failed = []
+    for v in videos:
+        vid = v["id"]
+        if vid in store:
+            skipped += 1
+            continue
+        subs = v.get("_subs") or []
+        track = next((s for s in subs if (s.get("language") or "").startswith("eng")), None)
+        if not track or not track.get("downloadLink"):
+            store[vid] = {"t": None}
+            none += 1
+            continue
+        try:
+            req = urllib.request.Request(track["downloadLink"], headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=45) as r:
+                text = parse_vtt(r.read().decode("utf-8", errors="replace"))
+            if not text:
+                raise ValueError("track downloaded but parsed to empty text")
+            store[vid] = {"t": text}
+            new += 1
+        except Exception as e:                                   # noqa: BLE001
+            failed.append((vid, f"{type(e).__name__}: {e}"))     # no store entry -> retried next run
+    save("transcripts.json", store)
+    have = sum(1 for x in store.values() if x.get("t"))
+    print(f"transcripts: {new} new, {none} no-track, {skipped} cached, {len(failed)} failed | {have}/{len(store)} have text")
+    for vid, why in failed:
+        print(f"  TRANSCRIPT FAIL {vid}: {why}", flush=True)
+    if failed:
+        print(f"::warning title=Transcript downloads failed::{len(failed)} transcripts failed in mode={MODE}")
+
+
 def sync_covers(videos, store):
     """Fetch any cover we don't already have, then set each `cover` flag from disk truth."""
     os.makedirs(COVERS, exist_ok=True)
@@ -191,6 +243,18 @@ def sync_covers(videos, store):
 
 def scrape():
     profile_stats = None
+    if MODE == "backfill":
+        # Re-read an existing dataset (free) instead of running an actor - used to
+        # capture covers/transcripts from a sweep that ran before those pipelines
+        # existed. Reads are free; the signed asset links inside stay valid ~48h.
+        ds = os.environ.get("DATASET_ID")
+        if not ds:
+            sys.exit("MODE=backfill needs DATASET_ID")
+        url = f"https://api.apify.com/v2/datasets/{ds}/items"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {TOKEN}"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            raw = json.load(r)
+        return [norm_clockworks(v) for v in raw if v.get("id")], None
     if MODE == "ig":
         profs = apify("apify~instagram-profile-scraper", {"usernames": [HANDLE_IG]})
         p0 = next((p for p in profs if not p.get("error")), None)
@@ -253,15 +317,17 @@ for attempt in range(1, ATTEMPTS + 1):
 if not videos:
     sys.exit(f"scrape returned 0 videos after {ATTEMPTS} attempts - refusing to write")
 
-# merge videos (_cover is a transient download url - never persisted, it expires)
+# merge videos (_cover/_subs are transient download urls - never persisted, they expire)
 store = load(prefix + "videos.json", {})
 for v in videos:
     prev = store.get(v["id"], {})
-    prev.update({k: val for k, val in v.items() if k != "_cover"})
+    prev.update({k: val for k, val in v.items() if not k.startswith("_")})
     prev["lastSeen"] = now_iso
     store[v["id"]] = prev
 
 sync_covers(videos, store)
+if MODE != "ig":
+    sync_transcripts(videos)
 save(prefix + "videos.json", store)
 
 # per-video daily view snapshots (latest value wins within a day)

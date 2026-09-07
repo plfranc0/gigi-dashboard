@@ -131,6 +131,32 @@ tr:last-child td{border-bottom:none}
 .mini td,.mini th{padding:7px 12px}
 .mini .pos{color:var(--green)}
 
+/* insights */
+.report{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:20px 22px;line-height:1.65}
+.report h3{font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;margin:18px 0 6px}
+.report h3:first-child{margin-top:0}
+.report p{margin:0 0 10px;color:var(--text)}
+.report .meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--faint);margin-bottom:12px}
+.vbar{display:flex;align-items:center;gap:10px;margin:6px 0}
+.vbar .lbl{width:90px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-align:right}
+.vbar .tr{flex:1;height:14px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.vbar .fl{height:100%;background:var(--h4);border-radius:4px}
+.vbar .pc{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);width:44px}
+.mult{font-family:'IBM Plex Mono',monospace}
+.mult.hi{color:var(--green)}.mult.lo{color:var(--red)}
+tr.dim td{opacity:.42}
+.pair{display:flex;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;flex-wrap:wrap}
+.pair .vs{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--faint)}
+.pair .side{display:flex;gap:10px;align-items:center;min-width:0;flex:1}
+.pair .side .nums{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted)}
+.pair .side .nums b{color:var(--text);font-weight:600}
+.autop{border-top:2px solid var(--green)}
+.autop.worst{border-top-color:var(--red)}
+.autop .atext{color:var(--text);line-height:1.6;font-size:13.5px;margin-top:8px}
+details.arch{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin-bottom:8px}
+details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+.bw .anote{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.5;border-left:2px solid var(--line);padding-left:9px}
+
 @media (max-width:820px){
   .app{flex-direction:column}
   .side{width:auto;height:auto;position:static;display:flex;align-items:center;gap:4px;padding:12px 14px;border-right:none;border-bottom:1px solid var(--line);overflow-x:auto}
@@ -155,8 +181,8 @@ tr:last-child td{border-bottom:none}
       <a href="#" id="p-tiktok" class="on plat">TikTok</a>
       <a href="#" id="p-ig" class="plat">Instagram</a>
       <div class="nav-h">Analyze</div>
-      <a href="#" style="color:var(--text)">Dashboard</a>
-      <a href="#"><span>Insights</span><span class="soon">soon</span></a>
+      <a href="#" id="nav-dash" class="on">Dashboard</a>
+      <a href="#insights" id="nav-ins">Insights</a>
       <div class="nav-h">Create</div>
       <a href="#"><span>Studio</span><span class="soon">soon</span></a>
       <a href="#"><span>Cross-posting</span><span class="soon">soon</span></a>
@@ -165,6 +191,7 @@ tr:last-child td{border-bottom:none}
   </aside>
 
   <main class="main">
+  <div id="view-dash">
     <h1>Dashboard</h1>
     <p class="pg-sub">Your daily scoreboard.</p>
 
@@ -228,6 +255,30 @@ tr:last-child td{border-bottom:none}
       <table id="vidtbl"></table>
       <button class="showmore" id="more">Show all</button>
     </div>
+  </div><!-- /view-dash -->
+
+  <div id="view-ins" hidden>
+    <h1>Insights</h1>
+    <p class="pg-sub">What the data says about why videos perform. TikTok only for now — Instagram joins once the official connection is live.</p>
+
+    <h2>This week's report</h2>
+    <div class="report" id="ins-report"><p style="color:var(--muted)">No report generated yet.</p></div>
+
+    <h2>Format or script? <small id="ins-fs-sub"></small></h2>
+    <div class="chart-wrap" id="ins-variance"></div>
+
+    <h2>Same script, different video <small>— natural experiments</small></h2>
+    <div id="ins-pairs"></div>
+
+    <h2>Best &amp; worst — the why</h2>
+    <div class="bw" id="ins-autopsies"></div>
+
+    <h2>Performance by tag <small>— median views; × = vs catalog median; faded rows have too few videos to trust</small></h2>
+    <div id="ins-tables"></div>
+
+    <h2>Past reports</h2>
+    <div id="ins-archive"><p style="color:var(--muted);font-size:13px">None yet.</p></div>
+  </div><!-- /view-ins -->
   </main>
 </div>
 
@@ -275,9 +326,9 @@ const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&am
 // onerror strips a stray img so the gradient placeholder shows instead.
 // The prefix is passed in rather than held in a shared variable, so two
 // overlapping renders can never paint one platform's posts with the other's art.
-function thumb(v,cls,prefix){
+function thumb(v,cls,prefix,eager){
   const img=v.cover
-    ? `<img src="assets/covers/${prefix}${encodeURIComponent(v.id)}.jpg" loading="lazy" decoding="async" alt="" onerror="this.remove()">`
+    ? `<img src="assets/covers/${prefix}${encodeURIComponent(v.id)}.jpg" loading="${eager?'eager':'lazy'}" decoding="async" alt="" onerror="this.remove()">`
     : '';
   return `<span class="th ${cls}">${img}</span>`;
 }
@@ -329,8 +380,17 @@ async function render(pk){
     const worst=(mature.length?[...mature]:[...wk]).sort((a,b)=>rank(a)-rank(b))[0];
     const nums=v=>[['views','views'],['likes','likes'],['comments','comments'],['saves','saves'],['shares','shares']]
       .filter(([k])=>v[k]!=null).map(([k,l])=>`${fmt(v[k])} ${l}`).join(' · ');
-    const card=(v,tag,cls)=>`<div class="card ${cls}"><div class="tag">${tag}</div><div style="display:flex;gap:12px;margin-top:6px"><a href="${esc(v.url)}" target="_blank" rel="noopener">${th(v,'th-b')}</a><div style="min-width:0"><div class="cap" style="margin-top:0">${esc(v.caption||'(no caption)')}</div><div class="nums">${nums(v)}</div><div style="margin-top:8px"><a href="${esc(v.url)}" target="_blank" rel="noopener">View on ${P.label} ↗</a></div></div></div></div>`;
+    const card=(v,tag,cls)=>`<div class="card ${cls}" data-vid="${esc(v.id)}"><div class="tag">${tag}</div><div style="display:flex;gap:12px;margin-top:6px"><a href="${esc(v.url)}" target="_blank" rel="noopener">${th(v,'th-b')}</a><div style="min-width:0"><div class="cap" style="margin-top:0">${esc(v.caption||'(no caption)')}</div><div class="nums">${nums(v)}</div><div style="margin-top:8px"><a href="${esc(v.url)}" target="_blank" rel="noopener">View on ${P.label} ↗</a></div></div></div></div>`;
     bw.innerHTML=card(best,'Best performer','')+(worst.id!==best.id?card(worst,'Worst performer','worst'):'');
+    if(!isIG)insightsData().then(ins=>{
+      if(!ins||!ins.autopsies)return;
+      for(const label of ['best','worst']){
+        const a=ins.autopsies[label];
+        if(!a)continue;
+        const el=bw.querySelector(`[data-vid="${a.id}"]`);
+        if(el&&!el.querySelector('.anote'))el.insertAdjacentHTML('beforeend',`<div class="anote">${esc(a.md)}</div>`);
+      }
+    });
   }else{
     bw.innerHTML=`<div class="note" style="grid-column:1/-1">No posts in the last 7 days on ${P.label}.</div>`;
   }
@@ -476,9 +536,97 @@ $('folchart').addEventListener('mousemove',e=>{
   if(i>=0&&i<hist.length){const h=hist[i];showTip(e,`${h.at.slice(0,16).replace('T',' ')} UTC\n${h.followers.toLocaleString()} followers`)}
 });
 $('folchart').addEventListener('mouseleave',hideTip);
-$('p-tiktok').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');render('tiktok')};
-$('p-ig').onclick=e=>{e.preventDefault();history.replaceState(null,'','#ig');render('ig')};
-render(location.hash==='#ig'?'ig':'tiktok');
+// ---------- insights view ----------
+let _insP=null;
+function insightsData(){
+  if(!_insP)_insP=j('data/ai-insights.json').catch(()=>null);
+  return _insP;
+}
+// tiny renderer for the report markdown (## headers, **bold**, paragraphs only)
+function mdr(md){
+  const out=[];let para=[];
+  const flush=()=>{if(para.length){out.push('<p>'+para.join(' ').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')+'</p>');para=[]}};
+  for(const line of md.split('\n')){
+    const s=line.trim();
+    if(!s){flush();continue}
+    if(s.startsWith('## ')){flush();out.push('<h3>'+esc(s.slice(3))+'</h3>')}
+    else para.push(esc(s));
+  }
+  flush();return out.join('');
+}
+const AXIS_LABELS={format:'Format (how it looks)',setting:'Setting',hook:'Hook type',structure:'Script structure',bucket:'Topic bucket',cta:'CTA',duration:'Length'};
+function multCell(x){
+  if(x==null)return '<td>—</td>';
+  const cls=x>=1.5?'hi':x<=0.5?'lo':'';
+  return `<td class="mult ${cls}">${x.toFixed(2)}×</td>`;
+}
+async function renderInsights(){
+  const ins=await insightsData();
+  if(!ins){$('ins-report').innerHTML='<p style="color:var(--muted)">No insights generated yet. They appear after the first weekly analysis run.</p>';return}
+  const videosObj=await j('data/videos.json').catch(()=>({}));
+  const s=ins.stats;
+
+  if(ins.report)$('ins-report').innerHTML=`<div class="meta">Week of ${esc(ins.report.date)} · ${s.n_tagged} videos analyzed</div>`+mdr(ins.report.md);
+
+  // variance panel
+  const eta=s.variance_explained||{};
+  const order=Object.entries(eta).sort((a,b)=>b[1]-a[1]);
+  const maxE=Math.max(...order.map(x=>x[1]),0.01);
+  $('ins-fs-sub').textContent=`— share of the view-count spread each factor explains (${s.n_mature} videos)`;
+  const V=s.format_bucket_confounding_cramers_v;
+  $('ins-variance').innerHTML=order.map(([k,v])=>
+    `<div class="vbar"><div class="lbl">${esc(k)}</div><div class="tr"><div class="fl" style="width:${Math.round(v/maxE*100)}%"></div></div><div class="pc">${Math.round(v*100)}%</div></div>`).join('')
+    +`<div class="legendline">These overlap and don't sum to 100. Format↔topic entanglement (Cramér's V): <b style="color:var(--text)">${V==null?'—':V}</b> — ${V>=0.5?'high: she tends to shoot certain topics in certain formats, so read single-factor numbers with care.':'moderate/low: the factors vary independently enough to compare.'}</div>`;
+
+  // repeated-script pairs
+  const pairs=s.repeated_scripts||[];
+  const vinfo=id=>videosObj[id]||{};
+  $('ins-pairs').innerHTML=pairs.length?pairs.map(p=>{
+    const side=x=>{const v=vinfo(x.id);return `<a class="side" style="text-decoration:none;color:inherit" href="${esc(v.url||'#')}" target="_blank" rel="noopener">${thumb({id:x.id,cover:v.cover},'th-t','',true)}<div><div class="nums"><b>${fmt(x.views)}</b> views</div><div class="vs">${esc(x.format)} · ${esc(x.setting)} · ${esc(x.date)}</div></div></a>`};
+    return `<div class="pair">${side(p.a)}<div class="vs">same script<br>${Math.round(p.jaccard*100)}% match</div>${side(p.b)}</div>`;
+  }).join(''):'<div class="note" style="margin-top:0">No near-duplicate scripts detected yet. When the same script gets filmed twice in different formats, the pair shows up here — the cleanest format-vs-script evidence there is.</div>';
+
+  // autopsies
+  const ap=ins.autopsies||{};
+  $('ins-autopsies').innerHTML=['best','worst'].map(label=>{
+    const a=ap[label];if(!a)return '';
+    const v=vinfo(a.id);
+    return `<div class="card autop ${label==='worst'?'worst':''}"><div class="tag">${label==='best'?'Best of the week':'Worst of the week'}</div><div style="display:flex;gap:12px;margin-top:6px"><a href="${esc(v.url||'#')}" target="_blank" rel="noopener">${thumb({id:a.id,cover:v.cover},'th-b','',true)}</a><div style="min-width:0"><div class="cap" style="margin-top:0">${esc(v.caption||'')}</div><div class="nums">${fmt(v.views)} views</div></div></div><div class="atext">${esc(a.md)}</div></div>`;
+  }).join('')||'<div class="note" style="grid-column:1/-1">Autopsies appear after the first analysis run.</div>';
+
+  // tag performance tables
+  const tables=[];
+  const addTable=(key,data)=>{
+    if(!data)return;
+    let rows=`<tr><th style="text-align:left">${esc(AXIS_LABELS[key]||key)}</th><th>Videos</th><th>Median views</th><th>vs catalog</th><th>In top 10</th></tr>`;
+    for(const [val,g] of Object.entries(data)){
+      rows+=`<tr${g.low_sample?' class="dim"':''}><td>${esc(val)}</td><td>${g.n}</td><td>${fmt(g.median)}</td>${multCell(g.vs_catalog)}<td>${g.in_top10??'—'}</td></tr>`;
+    }
+    tables.push(`<div class="tblwrap" style="margin-bottom:14px"><table class="mini">${rows}</table></div>`);
+  };
+  for(const k of ['bucket','format','hook','structure','setting','cta'])addTable(k,s.axes[k]);
+  addTable('duration',s.duration);
+  $('ins-tables').innerHTML=tables.join('');
+
+  // archive
+  const arch=ins.archive||[];
+  $('ins-archive').innerHTML=arch.length?arch.map(r=>`<details class="arch"><summary>Week of ${esc(r.date)}</summary><div class="report" style="border:none;padding:10px 0 0">${mdr(r.md)}</div></details>`).join(''):'<p style="color:var(--muted);font-size:13px">None yet.</p>';
+}
+
+// ---------- routing ----------
+function showView(which){
+  $('view-dash').hidden=which!=='dash';
+  $('view-ins').hidden=which!=='ins';
+  $('nav-dash').classList.toggle('on',which==='dash');
+  $('nav-ins').classList.toggle('on',which==='ins');
+  if(which==='ins')renderInsights();
+}
+$('p-tiktok').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');showView('dash');render('tiktok')};
+$('p-ig').onclick=e=>{e.preventDefault();history.replaceState(null,'','#ig');showView('dash');render('ig')};
+$('nav-dash').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');showView('dash')};
+$('nav-ins').onclick=e=>{e.preventDefault();history.replaceState(null,'','#insights');showView('ins')};
+if(location.hash==='#insights'){showView('ins');render('tiktok')}
+else{showView('dash');render(location.hash==='#ig'?'ig':'tiktok')}
 </script>
 </body>
 </html>

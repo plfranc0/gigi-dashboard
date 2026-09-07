@@ -43,6 +43,18 @@ jobs:
           MODE: ${{ steps.mode.outputs.mode }}
         run: python3 scripts/pull.py
 
+      # Tag any new videos + refresh insights. continue-on-error so an AI-side
+      # failure never blocks the stats commit - the step still shows red and
+      # the scripts emit ::warning annotations, so failures stay visible.
+      - name: AI tags + insights
+        if: steps.mode.outputs.mode != 'ig'
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 scripts/ai-tag.py
+          python3 scripts/ai-insights.py
+
       - name: Commit data
         run: |
           git config user.name "gigi-dashboard-bot"
