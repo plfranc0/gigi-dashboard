@@ -40,6 +40,7 @@ jobs:
       - name: Pull stats
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
           MODE: ${{ steps.mode.outputs.mode }}
         run: python3 scripts/pull.py
 

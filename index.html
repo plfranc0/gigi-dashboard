@@ -315,7 +315,7 @@ async function j(p){const r=await fetch(p+'?t='+Date.now());if(!r.ok)throw new E
 
 const PLATFORMS={
   tiktok:{prefix:'',label:'TikTok',handle:'@gigichahal · TikTok',url:'https://www.tiktok.com/@gigichahal',metaKey:'lastUpdated',rank:'views',viewWord:'views'},
-  ig:{prefix:'ig-',label:'Instagram',handle:'@gigichahal_ · Instagram',url:'https://www.instagram.com/gigichahal_/',metaKey:'lastUpdatedIG',rank:'comments',viewWord:'comments'}
+  ig:{prefix:'ig-',label:'Instagram',handle:'@gigichahal_ · Instagram',url:'https://www.instagram.com/gigichahal_/',metaKey:'lastUpdatedIG',rank:'views',viewWord:'views'}
 };
 const state={hist:[]};
 let curPlatform='tiktok';
@@ -360,7 +360,7 @@ async function render(pk){
   $('p-likes').textContent=fmt(prof.current.totalLikes??sum(vids,'likes'));
   $('p-vids').textContent=prof.current.totalVideos??vids.length;
   $('p-views').textContent=fmt(sum(vids,'views'));
-  $('ig-note').hidden=!isIG;
+  $('ig-note').hidden=!isIG||vids.some(v=>v.views!=null);
 
   // this week vs prior
   const wk=vids.filter(v=>dayOf(v.createTime)>addDays(today,-7));
@@ -370,7 +370,7 @@ async function render(pk){
     weekCard('Posts',wk.length,pw.length,true)+
     weekCard('Avg views',avg(wk,'views'),avg(pw,'views'))+
     weekCard('Avg likes',avg(wk,'likes'),avg(pw,'likes'))+
-    (isIG?weekCard('Avg comments',avg(wk,'comments'),avg(pw,'comments')):weekCard('Avg saves',avg(wk,'saves'),avg(pw,'saves')));
+    weekCard('Avg saves',avg(wk,'saves'),avg(pw,'saves'));
 
   // best & worst
   const bw=$('bw');
@@ -419,7 +419,7 @@ async function render(pk){
   const missed=posts30.filter(n=>n===0).length;
   const v30=vids.filter(v=>dayOf(v.createTime)>addDays(today,-30));
   const vPrev30=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-30)&&d>addDays(today,-60)});
-  const perPost=isIG?'comments':'views';
+  const perPost='views';
   $('thirty').innerHTML=
     `<div class="card"><div class="k">${perPost} (posts this period)</div><div class="v">${fmt(sum(v30,perPost))}</div>${delta(sum(v30,perPost),sum(vPrev30,perPost))}</div>`+
     `<div class="card"><div class="k">Posts</div><div class="v">${v30.length}</div>${delta(v30.length,vPrev30.length)}</div>`+

@@ -7,9 +7,14 @@ Modes (env MODE):
             NOTE: clockworks follower counts are ROUNDED (~nearest 100) - accepted
             trade-off to stay on the free plan; video stats stay exact.
   full    - clockworks/tiktok-scraper, entire catalog (~$0.45/run, 1st + 15th)
-  ig      - instagram profile + posts (~$0.02/run, 2x/day). Public IG hides her
-            like counts (likesCount = -1) and photos have no view counts, so this
-            leg is thin until the Meta Graph API connection lands.
+  ig      - Instagram. With IG_TOKEN set (the 60-day Graph API token, connected
+            2026-09-07) this reads the OFFICIAL API: every reel regardless of
+            feed-sharing, plus views/reach/likes/saves/shares per post - data the
+            public page hides. Without IG_TOKEN it falls back to the old public
+            scrape (8 photos, no numbers) and says so loudly.
+            NOTE: Graph media ids are a different id space than the scraper's, so
+            the first Graph run starts ig-videos/ig-timeseries fresh (the 2 days
+            of scraper history were 8 photo posts with no counts - nothing lost).
 
 Data files written:
   data/videos.json      merged per-video latest stats
@@ -29,6 +34,7 @@ import json
 import os
 import sys
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -97,6 +103,78 @@ def norm_clockworks(item):
         "saves": item.get("collectCount") or 0,
         "hashtags": [h.get("name") for h in (item.get("hashtags") or []) if isinstance(h, dict) and h.get("name")],
     }
+
+
+GRAPH = "https://graph.instagram.com/v23.0"
+IG_INSIGHT_METRICS = "views,reach,likes,comments,saved,shares,total_interactions"
+IG_INSIGHTS_CAP = 150   # per-media insights calls per run; platform limit is ~200/user/hour
+
+
+def graph_get(path, **params):
+    qs = urllib.parse.urlencode(params)
+    req = urllib.request.Request(f"{GRAPH}{path}?{qs}" if not path.startswith("http") else f"{path}&{qs}",
+                                 headers={"User-Agent": "gigi-dashboard/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)
+
+
+def scrape_ig_graph(token):
+    """Official Graph API pull: profile + all media (paged) + per-media insights."""
+    me = graph_get("/me", fields="username,followers_count,follows_count,media_count",
+                   access_token=token)
+    profile_stats = {"followers": me["followers_count"], "following": me.get("follows_count"),
+                     "totalVideos": me.get("media_count")}
+
+    media, url = [], None
+    fields = ("id,caption,media_type,media_product_type,permalink,thumbnail_url,"
+              "media_url,timestamp,like_count,comments_count")
+    page = graph_get("/me/media", fields=fields, limit=100, access_token=token)
+    while True:
+        media += page.get("data", [])
+        nxt = (page.get("paging") or {}).get("next")
+        if not nxt or len(media) > 1000:
+            break
+        page = graph_get(nxt)
+
+    videos, ins_fail = [], []
+    for i, m in enumerate(media):
+        ins = {}
+        if i < IG_INSIGHTS_CAP:
+            try:
+                res = graph_get(f"/{m['id']}/insights", metric=IG_INSIGHT_METRICS,
+                                access_token=token)
+                ins = {d["name"]: d["values"][0]["value"] for d in res.get("data", [])}
+            except Exception as e:                               # noqa: BLE001
+                ins_fail.append((m["id"], f"{type(e).__name__}: {e}"))
+        is_reel = m.get("media_product_type") == "REELS"
+        videos.append({
+            "_cover": m.get("thumbnail_url") or m.get("media_url"),
+            "id": str(m["id"]),
+            "url": m.get("permalink") or "",
+            "caption": m.get("caption") or "",
+            "createTime": m.get("timestamp") or "",
+            "duration": None,                       # Graph API does not expose duration
+            "type": "Reel" if is_reel else m.get("media_type"),
+            "views": ins.get("views"),
+            "reach": ins.get("reach"),
+            "likes": ins.get("likes", m.get("like_count")),
+            "comments": ins.get("comments", m.get("comments_count")) or 0,
+            "shares": ins.get("shares"),
+            "saves": ins.get("saved"),
+            "hashtags": [w[1:] for w in (m.get("caption") or "").split() if w.startswith("#")],
+        })
+    if len(media) > IG_INSIGHTS_CAP:
+        print(f"::warning title=IG insights capped::{len(media)} media but insights fetched "
+              f"for newest {IG_INSIGHTS_CAP} only (rate-limit headroom)")
+    profile_stats["totalVideos"] = len(media)   # media_count only counts GRID posts (7 vs 112)
+    if ins_fail:
+        print(f"  {len(ins_fail)} media returned no insights (stored without):")
+        for mid, why in ins_fail[:5]:
+            print(f"    {mid}: {why[:120]}")
+    print(f"  graph: {len(media)} media "
+          f"({sum(1 for v in videos if v['type'] == 'Reel')} reels), "
+          f"{me['followers_count']} followers")
+    return videos, profile_stats
 
 
 def norm_ig(item):
@@ -256,6 +334,10 @@ def scrape():
             raw = json.load(r)
         return [norm_clockworks(v) for v in raw if v.get("id")], None
     if MODE == "ig":
+        tok = os.environ.get("IG_TOKEN")
+        if tok:
+            return scrape_ig_graph(tok)
+        print("IG_TOKEN not set - falling back to the thin public scrape", flush=True)
         profs = apify("apify~instagram-profile-scraper", {"usernames": [HANDLE_IG]})
         p0 = next((p for p in profs if not p.get("error")), None)
         if p0 and p0.get("followersCount"):
@@ -316,6 +398,23 @@ for attempt in range(1, ATTEMPTS + 1):
 
 if not videos:
     sys.exit(f"scrape returned 0 videos after {ATTEMPTS} attempts - refusing to write")
+
+# One-time migration: Graph media ids are a different id space than the old
+# scraper's, so the first Graph run starts the ig stores fresh (the scraper era
+# held 8 photo posts with no counts) and drops their orphaned cover files.
+if MODE == "ig" and os.environ.get("IG_TOKEN"):
+    _meta = load("meta.json", {})
+    if _meta.get("igSource") != "graph":
+        print("first Graph API run - resetting ig stores (old scraper ids are a different id space)")
+        old_ids = list(load("ig-videos.json", {}))
+        for oid in old_ids:
+            path = os.path.join(COVERS, f"ig-{oid}.jpg")
+            if os.path.exists(path):
+                os.remove(path)
+        save("ig-videos.json", {})
+        save("ig-timeseries.json", {})
+        _meta["igSource"] = "graph"
+        save("meta.json", _meta)
 
 # merge videos (_cover/_subs are transient download urls - never persisted, they expire)
 store = load(prefix + "videos.json", {})
