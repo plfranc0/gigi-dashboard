@@ -125,7 +125,17 @@ for label, want in (("REELS", "REELS"), ("FEED", "FEED")):
     except SystemExit as e:
         print(f"    {label} insights FAILED -> {e}")
 
-print("\n" + "=" * 68)
-print("LONG-LIVED TOKEN (store as IG_TOKEN_SCA in .env and repo secret IG_TOKEN):")
-print(token)
-print("=" * 68)
+out = os.environ.get("IG_TOKEN_OUT")
+if out:
+    # write the token straight to a file and keep it off stdout entirely -
+    # printing it once already cost a code when the display got redacted
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(token + "\n")
+    print(f"\nLONG-LIVED TOKEN written to {out} (not printed). "
+          "Store as IG_TOKEN_SCA in .env and repo secret IG_TOKEN.")
+else:
+    print("\n" + "=" * 68)
+    print("LONG-LIVED TOKEN (store as IG_TOKEN_SCA in .env and repo secret IG_TOKEN):")
+    print(token)
+    print("=" * 68)
