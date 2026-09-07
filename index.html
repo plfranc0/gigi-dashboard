@@ -177,11 +177,10 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
   <aside class="side">
     <div class="logo">gigi<em>.</em></div>
     <nav class="nav">
-      <div class="nav-h">Platform</div>
+      <div class="nav-h">Dashboard</div>
       <a href="#" id="p-tiktok" class="on plat">TikTok</a>
-      <a href="#" id="p-ig" class="plat">Instagram</a>
+      <a href="#ig" id="p-ig" class="plat">Instagram</a>
       <div class="nav-h">Analyze</div>
-      <a href="#" id="nav-dash" class="on">Dashboard</a>
       <a href="#insights" id="nav-ins">Insights</a>
       <div class="nav-h">Create</div>
       <a href="#"><span>Studio</span><span class="soon">soon</span></a>
@@ -259,21 +258,21 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
 
   <div id="view-ins" hidden>
     <h1>Insights</h1>
-    <p class="pg-sub">What the data says about why videos perform. TikTok only for now — Instagram joins once the official connection is live.</p>
+    <p class="pg-sub">What your videos say about what is working. TikTok only for now. Instagram joins once the official connection is live.</p>
 
-    <h2>This week's report</h2>
+    <h2>Your week, explained</h2>
     <div class="report" id="ins-report"><p style="color:var(--muted)">No report generated yet.</p></div>
 
-    <h2>Format or script? <small id="ins-fs-sub"></small></h2>
+    <h2>Is it how you film, or what you say? <small id="ins-fs-sub"></small></h2>
     <div class="chart-wrap" id="ins-variance"></div>
 
-    <h2>Same script, different video <small>— natural experiments</small></h2>
+    <h2>Same script, filmed two ways <small>— the fairest test there is</small></h2>
     <div id="ins-pairs"></div>
 
-    <h2>Best &amp; worst — the why</h2>
+    <h2>Why your best and worst did what they did</h2>
     <div class="bw" id="ins-autopsies"></div>
 
-    <h2>Performance by tag <small>— median views; × = vs catalog median; faded rows have too few videos to trust</small></h2>
+    <h2>How each choice performs <small>— "usual views" is what that kind of video typically gets. Faded rows have too few videos to trust yet.</small></h2>
     <div id="ins-tables"></div>
 
     <h2>Past reports</h2>
@@ -319,6 +318,7 @@ const PLATFORMS={
   ig:{prefix:'ig-',label:'Instagram',handle:'@gigichahal_ · Instagram',url:'https://www.instagram.com/gigichahal_/',metaKey:'lastUpdatedIG',rank:'comments',viewWord:'comments'}
 };
 const state={hist:[]};
+let curPlatform='tiktok';
 const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 
 // Covers are committed to the repo (the CDN urls are signed and expire).
@@ -336,6 +336,7 @@ function thumb(v,cls,prefix,eager){
 async function render(pk){
   const P=PLATFORMS[pk];
   const th=(v,cls)=>thumb(v,cls,P.prefix);
+  curPlatform=pk;
   document.querySelectorAll('.plat').forEach(a=>a.classList.remove('on'));
   $('p-'+pk).classList.add('on');
 
@@ -554,7 +555,30 @@ function mdr(md){
   }
   flush();return out.join('');
 }
-const AXIS_LABELS={format:'Format (how it looks)',setting:'Setting',hook:'Hook type',structure:'Script structure',bucket:'Topic bucket',cta:'CTA',duration:'Length'};
+const AXIS_LABELS={format:'How you filmed it',setting:'Where you filmed it',hook:'How it opens',structure:'How the script is built',bucket:'What it is about',cta:'What you asked for',duration:'How long it is'};
+// the stored tags are slugs; these are what a human should read
+const VALUE_LABELS={
+  'talking-head':'Talking to camera','text-overlay':'Text on screen','broll-voiceover':'Voice over footage',
+  'skit':'Skit','photo-carousel':'Photo carousel','screen-recording':'Screen recording',
+  'mirror-grwm':'Mirror / getting ready','event-social':'Out with people','car':'In the car','home':'At home',
+  'outdoors':'Outside','studio':'Studio','unknown':'Not clear',
+  'taboo':'Says the quiet part','dark':'Exposes something hidden','contradiction':'Two things that clash',
+  'sequence-framing':'"And the last one..."','stakes':'What you gain or lose','scenario-injection':'A very specific situation',
+  'polarizing':'Starts an argument','pain-point':'Names a worry','question':'Asks a question',
+  'story-open':'Drops into a story','direct-value':'Says the value up front','relatable-moment':'A relatable moment',
+  'no-spoken-hook':'No talking',
+  '3-levels':'Three levels','options':'Option 1, 2, 3','bad-good-great':'Bad, good, great',
+  'pain-point-solution':'Problem then fix','step-by-step':'Step by step','dream-result':'Before and after',
+  'heros-journey':'Full story arc','about-me':'Your story','list':'A list','rant-yap':'Free-flowing talk',
+  'story':'A story','moment-clip':'A single moment','other':'Other',
+  'camera-roll-reframe':'Your camera roll is worth money','receipts':'Real money numbers',
+  'industry-truths':'How UGC really works','girly-jobs':'Girly job energy','the-come-up':'How you got started',
+  'zoom-out-business':'Big picture money talk','relatable-life':'Everyday life','dating-relationships':'Dating and relationships',
+  'promo-cta':'Promo',
+  'comment-keyword':'Comment a word','follow':'Follow me','link-in-bio':'Link in bio',
+  'save-share':'Save or share','watch-live':'Watch the live','none':'No ask',
+};
+const vlabel=v=>VALUE_LABELS[v]||v;
 function multCell(x){
   if(x==null)return '<td>—</td>';
   const cls=x>=1.5?'hi':x<=0.5?'lo':'';
@@ -572,19 +596,19 @@ async function renderInsights(){
   const eta=s.variance_explained||{};
   const order=Object.entries(eta).sort((a,b)=>b[1]-a[1]);
   const maxE=Math.max(...order.map(x=>x[1]),0.01);
-  $('ins-fs-sub').textContent=`— share of the view-count spread each factor explains (${s.n_mature} videos)`;
+  $('ins-fs-sub').textContent=`— which choices line up with your view counts most, across ${s.n_mature} videos`;
   const V=s.format_bucket_confounding_cramers_v;
   $('ins-variance').innerHTML=order.map(([k,v])=>
-    `<div class="vbar"><div class="lbl">${esc(k)}</div><div class="tr"><div class="fl" style="width:${Math.round(v/maxE*100)}%"></div></div><div class="pc">${Math.round(v*100)}%</div></div>`).join('')
-    +`<div class="legendline">These overlap and don't sum to 100. Format↔topic entanglement (Cramér's V): <b style="color:var(--text)">${V==null?'—':V}</b> — ${V>=0.5?'high: she tends to shoot certain topics in certain formats, so read single-factor numbers with care.':'moderate/low: the factors vary independently enough to compare.'}</div>`;
+    `<div class="vbar"><div class="lbl">${esc(AXIS_LABELS[k]||k)}</div><div class="tr"><div class="fl" style="width:${Math.round(v/maxE*100)}%"></div></div><div class="pc">${Math.round(v*100)}%</div></div>`).join('')
+    +`<div class="legendline">Longer bar = that choice lines up with bigger differences in views. These overlap, so they do not add up to 100%. ${V>=0.5?'Heads up: you tend to film certain topics the same way every time, so it is hard to tell the two apart yet.':'Your topics and filming styles vary independently enough to compare them fairly.'}</div>`;
 
   // repeated-script pairs
   const pairs=s.repeated_scripts||[];
   const vinfo=id=>videosObj[id]||{};
   $('ins-pairs').innerHTML=pairs.length?pairs.map(p=>{
-    const side=x=>{const v=vinfo(x.id);return `<a class="side" style="text-decoration:none;color:inherit" href="${esc(v.url||'#')}" target="_blank" rel="noopener">${thumb({id:x.id,cover:v.cover},'th-t','',true)}<div><div class="nums"><b>${fmt(x.views)}</b> views</div><div class="vs">${esc(x.format)} · ${esc(x.setting)} · ${esc(x.date)}</div></div></a>`};
-    return `<div class="pair">${side(p.a)}<div class="vs">same script<br>${Math.round(p.jaccard*100)}% match</div>${side(p.b)}</div>`;
-  }).join(''):'<div class="note" style="margin-top:0">No near-duplicate scripts detected yet. When the same script gets filmed twice in different formats, the pair shows up here — the cleanest format-vs-script evidence there is.</div>';
+    const side=x=>{const v=vinfo(x.id);return `<a class="side" style="text-decoration:none;color:inherit" href="${esc(v.url||'#')}" target="_blank" rel="noopener">${thumb({id:x.id,cover:v.cover},'th-t','',true)}<div><div class="nums"><b>${fmt(x.views)}</b> views</div><div class="vs">${esc(vlabel(x.format))} · ${esc(vlabel(x.setting))} · ${esc(x.date)}</div></div></a>`};
+    return `<div class="pair">${side(p.a)}<div class="vs">same script<br>${Math.round(p.jaccard*100)}% the same</div>${side(p.b)}</div>`;
+  }).join(''):'<div class="note" style="margin-top:0">Nothing here yet. If you ever film the same script two different ways, both versions show up here side by side. That is the cleanest way to tell whether the filming style or the words did the work.</div>';
 
   // autopsies
   const ap=ins.autopsies||{};
@@ -598,9 +622,9 @@ async function renderInsights(){
   const tables=[];
   const addTable=(key,data)=>{
     if(!data)return;
-    let rows=`<tr><th style="text-align:left">${esc(AXIS_LABELS[key]||key)}</th><th>Videos</th><th>Median views</th><th>vs catalog</th><th>In top 10</th></tr>`;
+    let rows=`<tr><th style="text-align:left">${esc(AXIS_LABELS[key]||key)}</th><th>Videos</th><th>Usual views</th><th>vs your normal</th><th>In your top 10</th></tr>`;
     for(const [val,g] of Object.entries(data)){
-      rows+=`<tr${g.low_sample?' class="dim"':''}><td>${esc(val)}</td><td>${g.n}</td><td>${fmt(g.median)}</td>${multCell(g.vs_catalog)}<td>${g.in_top10??'—'}</td></tr>`;
+      rows+=`<tr${g.low_sample?' class="dim"':''}><td>${esc(vlabel(val))}</td><td>${g.n}</td><td>${fmt(g.median)}</td>${multCell(g.vs_catalog)}<td>${g.in_top10??'—'}</td></tr>`;
     }
     tables.push(`<div class="tblwrap" style="margin-bottom:14px"><table class="mini">${rows}</table></div>`);
   };
@@ -617,13 +641,15 @@ async function renderInsights(){
 function showView(which){
   $('view-dash').hidden=which!=='dash';
   $('view-ins').hidden=which!=='ins';
-  $('nav-dash').classList.toggle('on',which==='dash');
   $('nav-ins').classList.toggle('on',which==='ins');
+  // on the dashboard the active platform link IS the active nav item; on
+  // insights neither platform is highlighted, so there is no duplicate "current page"
+  if(which==='ins')document.querySelectorAll('.plat').forEach(a=>a.classList.remove('on'));
+  else document.querySelectorAll('.plat').forEach(a=>a.classList.toggle('on',a.id==='p-'+curPlatform));
   if(which==='ins')renderInsights();
 }
-$('p-tiktok').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');showView('dash');render('tiktok')};
-$('p-ig').onclick=e=>{e.preventDefault();history.replaceState(null,'','#ig');showView('dash');render('ig')};
-$('nav-dash').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');showView('dash')};
+$('p-tiktok').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');render('tiktok');showView('dash')};
+$('p-ig').onclick=e=>{e.preventDefault();history.replaceState(null,'','#ig');render('ig');showView('dash')};
 $('nav-ins').onclick=e=>{e.preventDefault();history.replaceState(null,'','#insights');showView('ins')};
 if(location.hash==='#insights'){showView('ins');render('tiktok')}
 else{showView('dash');render(location.hash==='#ig'?'ig':'tiktok')}

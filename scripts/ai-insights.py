@@ -52,11 +52,13 @@ def load(name, default):
 
 
 def median(xs):
+    """Rounded to whole views - half-view medians read badly in a client report."""
     xs = sorted(xs)
     n = len(xs)
     if not n:
         return None
-    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+    m = xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+    return int(round(m))
 
 
 def pct(xs, q):
@@ -178,8 +180,27 @@ def compute_stats(videos, tags, transcripts):
                 "formats": {f: sum(1 for r in rs if r["format"] == f)
                             for f in {r["format"] for r in rs}}}
 
+    # Pick the week's best/worst ONCE, here, using the same >=2-day maturity rule
+    # the autopsies and the dashboard card use. Letting the report prompt choose
+    # its own made it name a different "weakest" than the autopsy card beside it.
+    def pick(rs):
+        if not rs:
+            return None, None
+        best = max(rs, key=lambda r: r["views"])
+        settled = [r for r in rs if r["age"] >= 2] or rs
+        worst = min(settled, key=lambda r: r["views"])
+        brief = lambda r: {"id": r["id"], "views": r["views"], "age_days": r["age"],
+                           "hookline": r["hookline"][:120], "format": r["format"],
+                           "bucket": r["bucket"]}
+        return brief(best), brief(worst)
+    wk_best, wk_worst = pick(wk)
+    too_new = [{"id": r["id"], "views": r["views"], "age_days": r["age"]}
+               for r in wk if r["age"] < 2]
+
     return {
         "n_tagged": len(rows), "n_mature": len(mature),
+        "week_best": wk_best, "week_worst": wk_worst,
+        "week_too_new_to_judge": too_new,
         "catalog_median_views": all_med,
         "axes": axes, "format_x_bucket": fxb[:20],
         "variance_explained": eta, "format_bucket_confounding_cramers_v": cramers_v,
@@ -234,34 +255,64 @@ def claude(prompt, max_tokens=8000):   # roomy: the model thinks before it write
             raise SystemExit(f"Claude API HTTP {e.code}: {e.read().decode(errors='replace')[:400]}")
 
 
-REPORT_PROMPT = """You are writing this week's pattern report for Gigi's TikTok, read by Gigi (the creator) and Patrick (her marketing lead). Below is a JSON of statistics computed from her actual videos. Rules, non-negotiable:
-- Every number you state must appear in the JSON. Never compute, extrapolate, or invent a figure.
-- Any group with "low_sample": true or n below 4 may only be mentioned as "too few videos to judge".
-- "vs_catalog" is that group's median views as a multiple of the whole catalog's median (1.0 = typical).
-- If format and topic are confounded (format_bucket_confounding_cramers_v above ~0.5), say plainly that they travel together and name ONE specific format+topic combination she has not tried enough, as the thing to test.
-- Check each axis's group sizes before judging it: when one value dominates an axis (say 80%+ of videos), low variance-explained means UNTESTED, not unimportant. Say "she almost always shoots X, so the data can't judge whether changing it would help" and suggest the variation to try. Never claim an axis "doesn't matter" when she hasn't varied it.
-- Plain English, direct, warm but zero hype, no emojis, no em dashes, no bullet-point spam. Short paragraphs. It should read like a sharp friend who did the homework.
+REPORT_PROMPT = """You are writing this week's video report FOR GIGI, the creator, to read on her own dashboard. She is smart but she is not a numbers person. Write like a sharp friend who studied her videos and is telling her what they found.
 
-Structure (use these exact markdown headers):
+VOICE RULES, non-negotiable:
+- Talk straight TO her: "you", "your videos". Never "she", never "the creator", never "we".
+- Write at a 5th grade reading level. Short sentences. Everyday words. One idea per sentence.
+- NEVER use these words: median, average, variance, correlation, sample, data set, catalog, axis, metric, bucket, format-vs-script, confounded, statistically. Say the plain-English thing instead.
+- NEVER print a bare statistic like 0.112, 1.94x, or n=7. Translate every one (see below).
+- No emojis. No dashes used as punctuation. No hype. No filler like "let's dive in".
+- Write view counts with commas: 2,472 not 2472. Round awkward numbers off, "about 1,800 views" beats "1,838 views".
+
+HOW TO TRANSLATE THE NUMBERS (do this every single time):
+- A group's "median" -> "your <thing> videos usually get around X views".
+- "vs_catalog" is how that group compares to a normal video of yours. 1.94 -> "about twice as many views as your usual video". 3.52 -> "about three and a half times your usual views". 0.73 -> "about a quarter fewer views than usual". Round it off. Never write the number with an x.
+- "catalog_median_views" -> "a normal video of yours gets about X views".
+- "n" is how many videos are in that group -> "you have posted N of these". If n is under 4 or low_sample is true, you MUST add something like "that is only N videos though, so it could just be luck".
+- "variance_explained" -> do NOT print these numbers at all. Just say which thing seems to matter most and which seems to matter least, in words.
+- "in_top10" -> "N of your 10 biggest videos were this".
+- Refer to a video by its opening line in quotes, like: the one that starts with "...".
+
+THINK BEFORE YOU JUDGE:
+- Before saying something does not matter, check how many videos actually tried it. If almost every video is the same (like nearly all talking-head), the honest answer is "you have not really tested this yet", NOT "this does not matter". Say that in plain words and name the thing she should try.
+- If format and topic travel together (format_bucket_confounding_cramers_v above about 0.5), say plainly that she tends to film certain topics in certain ways, so it is hard to tell them apart yet, and name ONE specific combination she should try to find out.
+- Never state a number that is not in the JSON below. Never do your own math.
+
+BAD (never write like this): "Format explains almost none of the variance (0.028). The-come-up bucket shows 1.94x catalog median across n=22."
+GOOD (write like this): "Your come-up videos, the ones about how you got started, usually pull about twice the views of a normal video. You have posted 22 of them, so that is a real pattern and not a fluke."
+
+Use these exact markdown headers:
 ## This week
-2-4 sentences: posts vs prior week, median views movement, the standout and the dud (name them by hookline).
-## Format or script?
-The centerpiece. What the variance split and the format x bucket table actually support. If repeated_scripts contains pairs where the same script ran in two formats, use them as the strongest evidence and cite both view counts. End with a one-sentence verdict at the current level of evidence.
+What happened. How many you posted, and whether views went up or down from last week. Then your best and your weakest. You MUST use "week_best" and "week_worst" for those two, exactly as given, and refer to each by its opening line. Do not pick your own from the video list, and never call a video in "week_too_new_to_judge" the weakest, because it has not had time to be seen yet (you may mention in passing that it is still too new to call). 3 to 5 short sentences.
+## Is it how you film, or what you say?
+The main question. Answer it in plain words. Say what the videos suggest so far, and be honest about what you cannot tell yet and why. If repeated_scripts has pairs, that is the same script filmed two ways, and it is your strongest evidence, so use it and give both view counts. End with one clear sentence saying where things stand right now.
 ## What is working
-2-3 patterns with real support (n >= 4), each tied to numbers from the JSON.
-## Try next week
-2-3 concrete, filmable suggestions that follow from the data above. Each one sentence.
+2 or 3 patterns that have enough videos behind them to trust. Say the numbers in plain words.
+## Try this next week
+2 or 3 specific things she could actually film. One sentence each. Each one should follow from something you said above.
 
-Max ~380 words total.
+Keep the whole thing under about 400 words.
 
 STATS JSON:
 """
 
-AUTOPSY_PROMPT = """Write a short performance autopsy of one TikTok video for the creator's dashboard. You get its transcript, tags, stats, and how it compares to her catalog. Rules:
-- Only cite numbers present below. No invented figures.
-- Quote the actual opening line when discussing the hook.
-- Diagnose against these craft principles: the first 3 seconds must grab, seconds 3-6 must plant a curiosity seed, value must keep paying past the hook, CTAs die at the very end of a video.
-- 3-5 sentences, plain English, direct, no emojis, no em dashes, no hedging filler. Verdict first sentence.
+AUTOPSY_PROMPT = """Explain to Gigi, the creator, why ONE of her videos did well or badly. She reads this on her own dashboard.
+
+VOICE RULES, non-negotiable:
+- Talk straight TO her: "you", "your video". Never "she" or "the creator".
+- 5th grade reading level. Short sentences. Everyday words.
+- NEVER use the words median, average, catalog, benchmark, metric, or bucket. Never print a bare number like 1.94x.
+- Compare in plain words instead: "about three times what a normal video of yours gets", "well under your usual".
+- No emojis. No dashes as punctuation. No hedging filler.
+- Only use numbers that appear below. Never do your own math.
+
+WHAT TO COVER, in 3 to 5 sentences:
+1. Start with the verdict: did it do well or badly, and roughly how it compares to a normal video of yours.
+2. The opening line. Quote her actual words. The first 3 seconds have to stop the scroll, and seconds 3 to 6 have to make someone need to know what comes next. Say whether it did that.
+3. Whether the video kept giving people a reason to stay after the opening.
+4. If there was no call to action, say so and say what she could have asked for. If there was one, say whether it landed in a good spot. Asking right at the very end does not work because most people are already gone.
+5. End with one specific thing to do differently next time.
 
 VIDEO:
 """
@@ -291,8 +342,11 @@ def main():
         last = (prev.get("report") or {}).get("date")
         if force or not last or (datetime.fromisoformat(today) - datetime.fromisoformat(last)).days > 6:
             md = claude(REPORT_PROMPT + json.dumps(stats, default=str))
-            if prev.get("report"):
+            # only archive a genuinely older report - re-running --force on the same
+            # day is a rewrite, not a new week, and must not stack duplicates
+            if prev.get("report") and prev["report"].get("date") != today:
                 out["archive"] = ([prev["report"]] + out["archive"])[:12]
+            out["archive"] = [r for r in out["archive"] if r.get("date") != today]
             out["report"] = {"date": today, "md": md}
             print(f"report: regenerated ({len(md)} chars)")
         else:
