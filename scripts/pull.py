@@ -16,13 +16,23 @@ Data files written:
   data/profile.json     follower history (one entry per run) + current
   data/timeseries.json  per-video daily view counts {videoId: {date: views}}
   data/meta.json        lastUpdated / lastFullSweep
+  assets/covers/*.jpg   post thumbnails, downloaded once and committed
+
+Covers: the CDN cover URLs are signed and expire in ~48h, so they cannot be
+hotlinked from the dashboard. Each cover is fetched once, downscaled to 320px
+wide (~26KB) and committed to the repo. The per-video `cover` flag is recomputed
+from what is actually on disk every run, so it can never claim an image exists
+when it does not. A cover failure never blocks the stats write.
 """
+import io
 import json
 import os
 import sys
 import time
 import urllib.request
 from datetime import datetime, timezone
+
+from PIL import Image
 
 TOKEN = os.environ.get("APIFY_TOKEN")
 if not TOKEN:
@@ -31,7 +41,14 @@ if not TOKEN:
 MODE = os.environ.get("MODE", "recent")
 HANDLE = "gigichahal"
 HANDLE_IG = "gigichahal_"
-DATA = os.path.join(os.path.dirname(__file__), "..", "data")
+ROOT = os.path.join(os.path.dirname(__file__), "..")
+DATA = os.path.join(ROOT, "data")
+COVERS = os.path.join(ROOT, "assets", "covers")
+
+COVER_W = 320       # display is <=200px wide, so 320 covers retina without bloating the repo
+COVER_Q = 78
+UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
 
 def apify(actor, payload, timeout=280):
@@ -66,6 +83,7 @@ def save(name, obj):
 def norm_clockworks(item):
     vm = item.get("videoMeta") or {}
     return {
+        "_cover": vm.get("coverUrl"),
         "id": str(item["id"]),
         "url": item.get("webVideoUrl") or f"https://www.tiktok.com/@{HANDLE}/video/{item['id']}",
         "caption": item.get("text") or "",
@@ -83,6 +101,7 @@ def norm_clockworks(item):
 def norm_ig(item):
     likes = item.get("likesCount")
     return {
+        "_cover": item.get("displayUrl"),
         "id": str(item["id"]),
         "url": item.get("url") or "",
         "caption": item.get("caption") or "",
@@ -103,6 +122,71 @@ now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 today = now.strftime("%Y-%m-%d")
 
 prefix = "ig-" if MODE == "ig" else ""
+
+
+def cover_path(vid_id):
+    return os.path.join(COVERS, f"{prefix}{vid_id}.jpg")
+
+
+def fetch_cover(url, dest):
+    """Download one cover, downscale, write atomically. Raises on any problem."""
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=45) as r:
+        raw = r.read()
+    if len(raw) < 1024:
+        raise ValueError(f"suspiciously small response ({len(raw)} bytes) - likely an error page")
+    im = Image.open(io.BytesIO(raw))
+    im.load()                      # force decode now so a truncated file fails here, not later
+    im = im.convert("RGB")
+    w, h = im.size
+    if w > COVER_W:
+        im = im.resize((COVER_W, max(1, round(h * COVER_W / w))), Image.LANCZOS)
+    tmp = dest + ".tmp"
+    im.save(tmp, "JPEG", quality=COVER_Q, optimize=True, progressive=True)
+    os.replace(tmp, dest)          # atomic - a half-written jpg never becomes the real file
+    return os.path.getsize(dest)
+
+
+def sync_covers(videos, store):
+    """Fetch any cover we don't already have, then set each `cover` flag from disk truth."""
+    os.makedirs(COVERS, exist_ok=True)
+    new = skipped = 0
+    failed = []
+    for v in videos:
+        dest = cover_path(v["id"])
+        if os.path.exists(dest):
+            skipped += 1
+            continue
+        url = v.get("_cover")
+        if not url:
+            failed.append((v["id"], "no cover url in payload"))
+            continue
+        try:
+            fetch_cover(url, dest)
+            new += 1
+        except Exception as e:                                   # noqa: BLE001
+            failed.append((v["id"], f"{type(e).__name__}: {e}"))
+            if os.path.exists(dest + ".tmp"):
+                os.remove(dest + ".tmp")
+
+    # recompute every flag from what is actually on disk - self-healing, and it
+    # cannot report an image the dashboard would then 404 on
+    have = 0
+    for vid, rec in store.items():
+        if os.path.exists(cover_path(vid)):
+            rec["cover"] = 1
+            have += 1
+        else:
+            rec.pop("cover", None)
+
+    print(f"covers: {new} new, {skipped} cached, {len(failed)} failed | {have}/{len(store)} of catalog has one")
+    for vid, why in failed:
+        print(f"  COVER FAIL {vid}: {why}", flush=True)
+    if failed:
+        # surfaces in the Actions run summary without failing the stats write
+        print(f"::warning title=Cover downloads failed::{len(failed)} of {len(videos)} covers "
+              f"could not be fetched in mode={MODE}")
+    return have
 
 
 def scrape():
@@ -169,13 +253,15 @@ for attempt in range(1, ATTEMPTS + 1):
 if not videos:
     sys.exit(f"scrape returned 0 videos after {ATTEMPTS} attempts - refusing to write")
 
-# merge videos
+# merge videos (_cover is a transient download url - never persisted, it expires)
 store = load(prefix + "videos.json", {})
 for v in videos:
     prev = store.get(v["id"], {})
-    prev.update(v)
+    prev.update({k: val for k, val in v.items() if k != "_cover"})
     prev["lastSeen"] = now_iso
     store[v["id"]] = prev
+
+sync_covers(videos, store)
 save(prefix + "videos.json", store)
 
 # per-video daily view snapshots (latest value wins within a day)

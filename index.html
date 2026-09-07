@@ -67,6 +67,25 @@ h2 small{color:var(--faint);text-transform:none;letter-spacing:0}
 .bw a{color:var(--green);font-size:12px;text-decoration:none}
 .bw a:hover{text-decoration:underline}
 
+/* thumbnails — the gradient placeholder sits behind, so a missing/failed
+   image degrades to a tile instead of a broken-image icon */
+.th{position:relative;overflow:hidden;border-radius:5px;background:var(--panel2);flex:none;display:block}
+.th::before{content:'';position:absolute;inset:0;background:linear-gradient(140deg,var(--h2),var(--panel2));z-index:0}
+.th img{position:relative;z-index:1;width:100%;height:100%;object-fit:cover;display:block}
+.th-t{width:36px;height:48px}
+.th-b{width:78px;height:104px}
+
+/* top-posts grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.gcard{position:relative;display:block;text-decoration:none;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+.gcard .th{border-radius:0;width:100%;aspect-ratio:9/16}
+.gcard .ov{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.88))}
+.gcard .ov .n{font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;color:#fff;font-variant-numeric:tabular-nums}
+.gcard .ov .s{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#cfd6d1}
+.gcard .rk{position:absolute;top:7px;left:7px;z-index:2;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:500;color:var(--ground);background:var(--green);border-radius:99px;padding:1px 7px}
+.gcard:hover{border-color:var(--h4)}
+.gcard:hover .th img{opacity:.86}
+
 /* charts */
 .chart-wrap{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
 .bars{display:flex;align-items:flex-end;gap:3px;height:120px;margin-top:8px}
@@ -97,8 +116,9 @@ th,td{text-align:right;padding:9px 12px;border-bottom:1px solid var(--line);font
 th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:500;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
 th:hover{color:var(--text)}
 td:first-child,th:first-child{text-align:left}
-td.cap{max-width:300px;overflow:hidden;text-overflow:ellipsis;text-align:left}
-td.cap a{text-decoration:none;color:var(--text)}
+td.cap{max-width:340px;text-align:left;padding-top:6px;padding-bottom:6px}
+td.cap a.capa{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);min-width:0}
+td.cap .captx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.cap a:hover{color:var(--green)}
 tr:last-child td{border-bottom:none}
 .showmore{display:block;width:100%;background:var(--panel2);border:none;color:var(--muted);font:inherit;padding:9px;cursor:pointer;border-radius:0 0 8px 8px}
@@ -169,6 +189,9 @@ tr:last-child td{border-bottom:none}
 
     <h2>Best &amp; worst — last 7 days</h2>
     <div class="bw" id="bw"></div>
+
+    <h2>Top posts <small id="topsub">— last 30 days</small></h2>
+    <div class="grid" id="topgrid"></div>
 
     <h2>Posts per day — last 30 days</h2>
     <div class="chart-wrap">
@@ -245,9 +268,23 @@ const PLATFORMS={
   ig:{prefix:'ig-',label:'Instagram',handle:'@gigichahal_ · Instagram',url:'https://www.instagram.com/gigichahal_/',metaKey:'lastUpdatedIG',rank:'comments',viewWord:'comments'}
 };
 const state={hist:[]};
+const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+
+// Covers are committed to the repo (the CDN urls are signed and expire).
+// `v.cover` is written by the pull script from what is actually on disk, and
+// onerror strips a stray img so the gradient placeholder shows instead.
+// The prefix is passed in rather than held in a shared variable, so two
+// overlapping renders can never paint one platform's posts with the other's art.
+function thumb(v,cls,prefix){
+  const img=v.cover
+    ? `<img src="assets/covers/${prefix}${encodeURIComponent(v.id)}.jpg" loading="lazy" decoding="async" alt="" onerror="this.remove()">`
+    : '';
+  return `<span class="th ${cls}">${img}</span>`;
+}
 
 async function render(pk){
   const P=PLATFORMS[pk];
+  const th=(v,cls)=>thumb(v,cls,P.prefix);
   document.querySelectorAll('.plat').forEach(a=>a.classList.remove('on'));
   $('p-'+pk).classList.add('on');
 
@@ -292,11 +329,27 @@ async function render(pk){
     const worst=(mature.length?[...mature]:[...wk]).sort((a,b)=>rank(a)-rank(b))[0];
     const nums=v=>[['views','views'],['likes','likes'],['comments','comments'],['saves','saves'],['shares','shares']]
       .filter(([k])=>v[k]!=null).map(([k,l])=>`${fmt(v[k])} ${l}`).join(' · ');
-    const card=(v,tag,cls)=>`<div class="card ${cls}"><div class="tag">${tag}</div><div class="cap">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</div><div class="nums">${nums(v)}</div><div style="margin-top:8px"><a href="${v.url}" target="_blank" rel="noopener">View on ${P.label} ↗</a></div></div>`;
+    const card=(v,tag,cls)=>`<div class="card ${cls}"><div class="tag">${tag}</div><div style="display:flex;gap:12px;margin-top:6px"><a href="${esc(v.url)}" target="_blank" rel="noopener">${th(v,'th-b')}</a><div style="min-width:0"><div class="cap" style="margin-top:0">${esc(v.caption||'(no caption)')}</div><div class="nums">${nums(v)}</div><div style="margin-top:8px"><a href="${esc(v.url)}" target="_blank" rel="noopener">View on ${P.label} ↗</a></div></div></div></div>`;
     bw.innerHTML=card(best,'Best performer','')+(worst.id!==best.id?card(worst,'Worst performer','worst'):'');
   }else{
     bw.innerHTML=`<div class="note" style="grid-column:1/-1">No posts in the last 7 days on ${P.label}.</div>`;
   }
+
+  // top posts grid — last 30 days, falling back to all time on a quiet month
+  const rankOf=v=>v[P.rank]??0;
+  let topPool=vids.filter(v=>dayOf(v.createTime)>addDays(today,-30));
+  let topScope='— last 30 days';
+  if(topPool.length<4){topPool=vids;topScope='— all time (fewer than 4 posts in the last 30 days)';}
+  $('topsub').textContent=topScope;
+  const top=[...topPool].sort((a,b)=>rankOf(b)-rankOf(a)).slice(0,10);
+  $('topgrid').innerHTML=top.length
+    ? top.map((v,i)=>{
+        const metric=v[P.rank]!=null?`${fmt(v[P.rank])} ${P.viewWord}`:'—';
+        return `<a class="gcard" href="${esc(v.url)}" target="_blank" rel="noopener" title="${esc(v.caption||'')}">
+          <span class="rk">${i+1}</span>${th(v,'')}
+          <span class="ov"><span class="n">${metric}</span><br><span class="s">${md(dayOf(v.createTime))}</span></span></a>`;
+      }).join('')
+    : `<div class="note" style="grid-column:1/-1">No posts to rank yet on ${P.label}.</div>`;
 
   // posts per day 30d
   const days30=[...Array(30)].map((_,i)=>addDays(today,i-29));
@@ -399,7 +452,7 @@ async function render(pk){
     const list=showAll?sorted:sorted.slice(0,25);
     let h='<tr>'+cols.map(([k,l])=>`<th data-k="${k}">${l}${sortKey===k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('')+'</tr>';
     list.forEach(v=>{
-      h+=`<tr><td>${md(dayOf(v.createTime))}</td><td class="cap"><a href="${v.url}" target="_blank" rel="noopener">${(v.caption||'(no caption)').replace(/</g,'&lt;')}</a></td><td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td><td>${fmt(v.comments)}</td><td>${fmt(v.shares)}</td><td>${fmt(v.saves)}</td><td>${v.duration!=null?Math.round(v.duration):'—'}</td></tr>`;
+      h+=`<tr><td>${md(dayOf(v.createTime))}</td><td class="cap"><a class="capa" href="${esc(v.url)}" target="_blank" rel="noopener">${th(v,'th-t')}<span class="captx">${esc(v.caption||'(no caption)')}</span></a></td><td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td><td>${fmt(v.comments)}</td><td>${fmt(v.shares)}</td><td>${fmt(v.saves)}</td><td>${v.duration!=null?Math.round(v.duration):'—'}</td></tr>`;
     });
     $('vidtbl').innerHTML=h;
     $('more').textContent=showAll?'Show top 25':`Show all ${vids.length}`;

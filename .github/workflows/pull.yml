@@ -25,6 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Pillow
+        run: pip install --quiet Pillow
+
       - name: Decide mode
         id: mode
         run: |
@@ -44,7 +47,7 @@ jobs:
         run: |
           git config user.name "gigi-dashboard-bot"
           git config user.email "actions@github.com"
-          git add data/
+          git add data/ assets/
           if git diff --cached --quiet; then
             echo "no changes"
           else
