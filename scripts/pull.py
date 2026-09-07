@@ -420,7 +420,13 @@ if MODE == "ig" and os.environ.get("IG_TOKEN"):
 store = load(prefix + "videos.json", {})
 for v in videos:
     prev = store.get(v["id"], {})
-    prev.update({k: val for k, val in v.items() if not k.startswith("_")})
+    for k, val in v.items():
+        if k.startswith("_"):
+            continue
+        # a failed insights call yields None - never let it erase a real number
+        if val is None and prev.get(k) is not None and k in ("views", "reach", "likes", "shares", "saves"):
+            continue
+        prev[k] = val
     prev["lastSeen"] = now_iso
     store[v["id"]] = prev
 
