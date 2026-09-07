@@ -651,8 +651,10 @@ function showView(which){
 $('p-tiktok').onclick=e=>{e.preventDefault();history.replaceState(null,'','#');render('tiktok');showView('dash')};
 $('p-ig').onclick=e=>{e.preventDefault();history.replaceState(null,'','#ig');render('ig');showView('dash')};
 $('nav-ins').onclick=e=>{e.preventDefault();history.replaceState(null,'','#insights');showView('ins')};
-if(location.hash==='#insights'){showView('ins');render('tiktok')}
-else{showView('dash');render(location.hash==='#ig'?'ig':'tiktok')}
+// render() sets the active platform link, so it must run BEFORE showView(),
+// or a direct load of #insights leaves both a platform and Insights highlighted
+if(location.hash==='#insights'){render('tiktok');showView('ins')}
+else{render(location.hash==='#ig'?'ig':'tiktok');showView('dash')}
 </script>
 </body>
 </html>

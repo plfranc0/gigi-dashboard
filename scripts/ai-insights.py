@@ -226,6 +226,38 @@ def axis_table_from(rs, keyfn, all_med):
 
 # ---------- LLM writing ----------
 
+# The tags are internal slugs. The prompt asks the model not to print them, but
+# asking is not enforcing - it leaked "talking-head" twice - so every generated
+# string is rewritten here as well. Longest first, so "no-spoken-hook" is not
+# half-replaced by a shorter key.
+SLUG_LABELS = {
+    "camera-roll-reframe": "your camera roll is worth money",
+    "pain-point-solution": "problem then fix", "zoom-out-business": "big picture money talk",
+    "dating-relationships": "dating and relationships", "broll-voiceover": "voice over footage",
+    "scenario-injection": "a very specific situation", "sequence-framing": "and the last one",
+    "no-spoken-hook": "no talking", "industry-truths": "how UGC really works",
+    "comment-keyword": "comment a word", "screen-recording": "screen recording",
+    "photo-carousel": "photo carousel", "relatable-life": "everyday life",
+    "relatable-moment": "a relatable moment", "bad-good-great": "bad, good, great",
+    "talking-head": "talking to camera", "text-overlay": "text on screen",
+    "heros-journey": "full story arc", "step-by-step": "step by step",
+    "the-come-up": "how you got started", "dream-result": "before and after",
+    "mirror-grwm": "getting ready in the mirror", "event-social": "out with people",
+    "direct-value": "says the value up front", "link-in-bio": "link in bio",
+    "girly-jobs": "girly job energy", "moment-clip": "a single moment",
+    "pain-point": "names a worry", "story-open": "drops into a story",
+    "save-share": "save or share", "watch-live": "watch the live",
+    "rant-yap": "free-flowing talk", "about-me": "your story",
+    "3-levels": "three levels", "promo-cta": "promo", "receipts": "real money numbers",
+}
+
+
+def sanitize(text):
+    for slug in sorted(SLUG_LABELS, key=len, reverse=True):
+        text = text.replace(slug, SLUG_LABELS[slug])
+    return text
+
+
 def claude(prompt, max_tokens=8000):   # roomy: the model thinks before it writes
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -247,7 +279,7 @@ def claude(prompt, max_tokens=8000):   # roomy: the model thinks before it write
                     f"no text block in response (stop_reason={res.get('stop_reason')}, "
                     f"blocks={[b.get('type') for b in res['content']]}) - "
                     "if stop_reason is max_tokens, thinking consumed the budget; raise max_tokens")
-            return text.strip()
+            return sanitize(text.strip())
         except urllib.error.HTTPError as e:
             if e.code in (429, 529, 500) and attempt < 2:
                 time.sleep(20 * (attempt + 1))
@@ -264,6 +296,7 @@ VOICE RULES, non-negotiable:
 - NEVER print a bare statistic like 0.112, 1.94x, or n=7. Translate every one (see below).
 - No emojis. No dashes used as punctuation. No hype. No filler like "let's dive in".
 - Write view counts with commas: 2,472 not 2472. Round awkward numbers off, "about 1,800 views" beats "1,838 views".
+- The tag values in the JSON are internal labels. NEVER print one as-is. Say it the way a person would: "talking-head" -> "talking to camera", "broll-voiceover" -> "voice over footage", "the-come-up" -> "how you got started", "industry-truths" -> "how UGC really works", "zoom-out-business" -> "big picture money talk", "relatable-life" -> "everyday life", "girly-jobs" -> "girly job energy", "receipts" -> "real money numbers", "camera-roll-reframe" -> "your camera roll is worth money", "text-overlay" -> "text on screen", "photo-carousel" -> "photo carousel", "mirror-grwm" -> "getting ready in the mirror", "link-in-bio" -> "link in bio", "comment-keyword" -> "comment a word", "moment-clip" -> "a single moment", "rant-yap" -> "free-flowing talk", "pain-point-solution" -> "problem then fix", "step-by-step" -> "step by step". Same idea for any other value: no hyphens, no jargon.
 
 HOW TO TRANSLATE THE NUMBERS (do this every single time):
 - A group's "median" -> "your <thing> videos usually get around X views".
