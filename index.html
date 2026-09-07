@@ -75,8 +75,19 @@ h2 small{color:var(--faint);text-transform:none;letter-spacing:0}
 .th-t{width:36px;height:48px}
 .th-b{width:78px;height:104px}
 
-/* top-posts grid */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+/* top posts — one horizontally scrollable row */
+.carou{position:relative}
+.grid{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;scroll-behavior:smooth;padding-bottom:6px}
+.grid>.gcard{flex:0 0 148px;scroll-snap-align:start}
+.grid::-webkit-scrollbar{height:6px}
+.grid::-webkit-scrollbar-track{background:var(--panel2);border-radius:99px}
+.grid::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+.grid:hover::-webkit-scrollbar-thumb{background:var(--h3)}
+.cbtn{position:absolute;top:calc(50% - 3px);transform:translateY(-50%);z-index:5;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:rgba(20,23,21,.94);color:var(--text);font:400 18px/1 'IBM Plex Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0 0 2px;opacity:0;transition:opacity .15s}
+.carou:hover .cbtn{opacity:1}
+.cbtn:hover{border-color:var(--h4);color:var(--green)}
+.cbtn[disabled]{opacity:0 !important;pointer-events:none}
+.cbtn.prev{left:-8px}.cbtn.next{right:-8px}
 .gcard{position:relative;display:block;text-decoration:none;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
 .gcard .th{border-radius:0;width:100%;aspect-ratio:9/16}
 .gcard .ov{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:22px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.88))}
@@ -94,13 +105,36 @@ h2 small{color:var(--faint);text-transform:none;letter-spacing:0}
 .bars .b.zero{background:var(--panel2);height:2px !important}
 .bx{display:flex;gap:3px;margin-top:6px}
 .bx span{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:var(--faint);overflow:hidden;white-space:nowrap}
+
+/* posts + views stacked on one shared day axis */
+.dual{display:grid;grid-template-columns:52px 1fr;column-gap:10px;row-gap:9px;align-items:end}
+.dual .bars{margin-top:0}
+.dual .bx{grid-column:2}
+.dual-lbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);text-align:right;padding-bottom:1px}
+.bars-p{height:66px}
+.bars-v{height:104px}
+.bars-p .b{background:var(--h3)}
+.bars-p .b:hover,.bars-v .b:hover{background:var(--h5)}
 .legendline{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--faint);margin-top:10px}
 .note{border:1px solid var(--line);border-left:3px solid var(--amber);background:var(--panel);border-radius:8px;padding:11px 14px;color:var(--muted);font-size:13px;margin-top:10px}
 svg text{font-family:'IBM Plex Mono',monospace;fill:var(--faint);font-size:9.5px}
 
-/* heatmap */
-.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,16px);gap:3px;overflow-x:auto;padding-bottom:4px}
-.hm .c{width:16px;height:16px;border-radius:3px;background:var(--panel2);font-family:'IBM Plex Mono',monospace;font-size:8px;display:flex;align-items:center;justify-content:center;color:var(--ground);cursor:default}
+/* heatmap — weekday rail on the left, month rail on top. All three grids share
+   one 20px cell + 4px gap pitch; change one and the other two MUST follow or
+   the labels drift off their columns. grid-auto-columns + justify-content:start
+   are load-bearing: without them the implicit columns stretch to fill the card
+   and only the cell grid widens. */
+/* max-content + auto margins centre the grid in the card (the window is 12
+   weeks on IG and 24 on TikTok, so a left-aligned grid strands one of them);
+   max-width:100% hands it back to .hm-scroll to scroll on a phone */
+.hm-wrap{display:flex;gap:8px;align-items:flex-start;width:max-content;max-width:100%;margin:0 auto}
+.hm-dows{display:grid;grid-template-rows:repeat(7,20px);gap:4px;flex:none;margin-top:19px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--faint)}
+.hm-dows span{display:flex;align-items:center;line-height:1}
+.hm-scroll{flex:1;min-width:0;overflow-x:auto;padding-bottom:4px}
+.hm-months{display:grid;grid-auto-flow:column;grid-auto-columns:20px;gap:4px;justify-content:start;height:15px;margin-bottom:4px}
+.hm-months span{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--faint);white-space:nowrap}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,20px);grid-auto-columns:20px;gap:4px;justify-content:start}
+.hm .c{width:20px;height:20px;border-radius:4px;background:var(--panel2);font-family:'IBM Plex Mono',monospace;font-size:9.5px;display:flex;align-items:center;justify-content:center;color:var(--ground);cursor:default}
 .hm .c.l0{background:var(--panel2);color:transparent}
 .hm .c.l1{background:var(--h2);color:var(--text)}
 .hm .c.l2{background:var(--h3);color:var(--text)}
@@ -160,7 +194,8 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
 @media (max-width:820px){
   .app{flex-direction:column}
   .side{width:auto;height:auto;position:static;display:flex;align-items:center;gap:4px;padding:12px 14px;border-right:none;border-bottom:1px solid var(--line);overflow-x:auto}
-  .logo{margin:0 10px 0 0;font-size:16px}
+  /* flex:none or the nav squeezes the name onto two clipped lines */
+  .logo{margin:0 10px 0 0;font-size:15px;flex:none;white-space:nowrap}
   .nav-h,.side .upd{display:none}
   .nav{display:flex;gap:2px}
   .nav a{padding:6px 9px;font-size:12.5px;white-space:nowrap}
@@ -168,6 +203,9 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
   .prof-stats{margin-left:0;gap:14px}
   .prof{flex-wrap:wrap}
   .bw{grid-template-columns:1fr}
+  .grid>.gcard{flex-basis:132px}
+  .cbtn{display:none}
+  .dual{grid-template-columns:40px 1fr;column-gap:7px}
 }
 </style>
 </head>
@@ -175,7 +213,7 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
 <div id="tip"></div>
 <div class="app">
   <aside class="side">
-    <div class="logo">gigi<em>.</em></div>
+    <div class="logo">Gigi Chahal<em>.</em></div>
     <nav class="nav">
       <div class="nav-h">Dashboard</div>
       <a href="#" id="p-tiktok" class="on plat">TikTok</a>
@@ -217,20 +255,23 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
     <div class="bw" id="bw"></div>
 
     <h2>Top posts <small id="topsub">— last 30 days</small></h2>
-    <div class="grid" id="topgrid"></div>
-
-    <h2>Posts per day — last 30 days</h2>
-    <div class="chart-wrap">
-      <div class="cards" style="margin-bottom:14px" id="thirty"></div>
-      <div class="bars" id="postbars"></div>
-      <div class="bx" id="postbx"></div>
+    <div class="carou">
+      <button class="cbtn prev" id="topprev" aria-label="Scroll left" disabled>‹</button>
+      <div class="grid" id="topgrid"></div>
+      <button class="cbtn next" id="topnext" aria-label="Scroll right">›</button>
     </div>
 
-    <h2>Views gained per day</h2>
-    <div class="chart-wrap" id="viewswrap">
-      <div class="bars" id="viewbars"></div>
-      <div class="bx" id="viewbx"></div>
-      <div class="legendline">Daily change in total catalog views. Tracking started Sep 5, 2026 — one bar per day from launch.</div>
+    <h2>Posts &amp; views per day <small>— last 30 days</small></h2>
+    <div class="chart-wrap">
+      <div class="cards" style="margin-bottom:14px" id="thirty"></div>
+      <div class="dual">
+        <div class="dual-lbl">Posts</div>
+        <div class="bars bars-p" id="postbars"></div>
+        <div class="dual-lbl">Views</div>
+        <div class="bars bars-v" id="viewbars"></div>
+        <div class="bx" id="postbx"></div>
+      </div>
+      <div class="legendline">Top row is how many times she posted that day. Bottom row is the views those same posts have earned since. One column per day, so the two line up.</div>
     </div>
 
     <h2>Follower growth</h2>
@@ -245,7 +286,13 @@ details.arch summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-s
 
     <h2>Posting heatmap <small id="hmrange"></small></h2>
     <div class="chart-wrap">
-      <div class="hm" id="hm"></div>
+      <div class="hm-wrap">
+        <div class="hm-dows"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
+        <div class="hm-scroll" id="hmscroll">
+          <div class="hm-months" id="hmmonths"></div>
+          <div class="hm" id="hm"></div>
+        </div>
+      </div>
       <div class="hm-cap">Less <i style="background:var(--panel2)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i> More — number = posts that day</div>
     </div>
 
@@ -300,6 +347,8 @@ const dayOf=iso=>new Date(iso).toLocaleDateString('en-CA',{timeZone:TZ});
 const todayPT=()=>new Date().toLocaleDateString('en-CA',{timeZone:TZ});
 function addDays(d,n){const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
 const md=d=>{const[,m,dd]=d.split('-');return `${+m}/${+dd}`};
+const longDay=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function delta(cur,prev){
   if(cur==null||prev==null||prev===0)return '<span class="d">—</span>';
   const p=Math.round((cur-prev)/prev*100);
@@ -340,9 +389,9 @@ async function render(pk){
   document.querySelectorAll('.plat').forEach(a=>a.classList.remove('on'));
   $('p-'+pk).classList.add('on');
 
-  let meta,videosObj,prof,ts;
+  let meta,videosObj,prof;
   try{
-    [meta,videosObj,prof,ts]=await Promise.all([j('data/meta.json'),j('data/'+P.prefix+'videos.json'),j('data/'+P.prefix+'profile.json'),j('data/'+P.prefix+'timeseries.json')]);
+    [meta,videosObj,prof]=await Promise.all([j('data/meta.json'),j('data/'+P.prefix+'videos.json'),j('data/'+P.prefix+'profile.json')]);
   }catch(e){
     document.querySelector('.main').insertAdjacentHTML('afterbegin',`<div class="note">Could not load data (${e.message}). If you opened this file locally, view the live site instead.</div>`);
     return;
@@ -410,12 +459,24 @@ async function render(pk){
           <span class="rk">${i+1}</span>${th(v,'')}
           <span class="ov"><span class="n">${metric}</span><br><span class="s">${md(dayOf(v.createTime))}</span></span></a>`;
       }).join('')
-    : `<div class="note" style="grid-column:1/-1">No posts to rank yet on ${P.label}.</div>`;
+    : `<div class="note" style="flex:1;margin-top:0">No posts to rank yet on ${P.label}.</div>`;
+  $('topgrid').scrollLeft=0;
+  syncTopCarousel();
 
-  // posts per day 30d
+  // posts + views per day, 30d, sharing one column-for-column day axis.
+  // Views are bucketed by the day the post went UP (lifetime views on that
+  // day's posts), not by the day the views arrived — that is what makes the
+  // two rows comparable, and it works from day one instead of needing two
+  // daily snapshots the way a views-gained-per-day chart does.
   const days30=[...Array(30)].map((_,i)=>addDays(today,i-29));
-  const postCount={};vids.forEach(v=>{const d=dayOf(v.createTime);postCount[d]=(postCount[d]||0)+1});
+  const postCount={},viewsByDay={};
+  vids.forEach(v=>{
+    const d=dayOf(v.createTime);
+    postCount[d]=(postCount[d]||0)+1;
+    if(v.views!=null)viewsByDay[d]=(viewsByDay[d]||0)+v.views;
+  });
   const posts30=days30.map(d=>postCount[d]||0);
+  const views30=days30.map(d=>viewsByDay[d]||0);
   const missed=posts30.filter(n=>n===0).length;
   const v30=vids.filter(v=>dayOf(v.createTime)>addDays(today,-30));
   const vPrev30=vids.filter(v=>{const d=dayOf(v.createTime);return d<=addDays(today,-30)&&d>addDays(today,-60)});
@@ -425,28 +486,16 @@ async function render(pk){
     `<div class="card"><div class="k">Posts</div><div class="v">${v30.length}</div>${delta(v30.length,vPrev30.length)}</div>`+
     `<div class="card"><div class="k">Avg ${perPost} / post</div><div class="v">${fmt(avg(v30,perPost))}</div>${delta(avg(v30,perPost),avg(vPrev30,perPost))}</div>`+
     `<div class="card"><div class="k">Days missed</div><div class="v">${missed}</div><div class="d">of 30</div></div>`;
-  const maxP=Math.max(...posts30,1);
-  $('postbars').innerHTML=posts30.map(n=>`<div class="b${n?'':' zero'}" style="height:${Math.max(4,n/maxP*100)}%"></div>`).join('');
-  [...$('postbars').children].forEach((b,i)=>hook(b,`${md(days30[i])}\n${posts30[i]} post${posts30[i]===1?'':'s'}`));
+  const maxP=Math.max(...posts30,1),maxV=Math.max(...views30,1);
+  // one tooltip shared by both rows, so hovering either bar answers the
+  // question the stacked layout is asking: what did that day's posting earn?
+  const dayTip=i=>`${longDay(days30[i])}\n${posts30[i]} post${posts30[i]===1?'':'s'}\n${fmt(views30[i])} views`;
+  const bar=(n,max)=>`<div class="b${n?'':' zero'}" style="height:${Math.max(4,n/max*100)}%"></div>`;
+  $('postbars').innerHTML=posts30.map(n=>bar(n,maxP)).join('');
+  $('viewbars').innerHTML=views30.map(n=>bar(n,maxV)).join('');
+  [...$('postbars').children].forEach((b,i)=>hook(b,dayTip(i)));
+  [...$('viewbars').children].forEach((b,i)=>hook(b,dayTip(i)));
   $('postbx').innerHTML=days30.map((d,i)=>`<span>${i%5===0?md(d):''}</span>`).join('');
-
-  // views gained per day (from timeseries snapshots)
-  const vw=$('viewswrap');
-  const dates=[...new Set(Object.values(ts).flatMap(o=>Object.keys(o)))].sort();
-  const totalByDate=dates.map(d=>Object.values(ts).reduce((s,o)=>{
-    const ks=Object.keys(o).filter(k=>k<=d).sort();
-    return s+(ks.length?o[ks[ks.length-1]]:0);
-  },0));
-  const gains=dates.slice(1).map((d,i)=>({d,g:totalByDate[i+1]-totalByDate[i]}));
-  if(gains.length){
-    const maxG=Math.max(...gains.map(x=>Math.abs(x.g)),1);
-    vw.innerHTML=`<div class="bars" id="viewbars"></div><div class="bx" id="viewbx"></div><div class="legendline">Daily change in total catalog views.</div>`;
-    $('viewbars').innerHTML=gains.map(x=>`<div class="b${x.g?'':' zero'}" style="height:${Math.max(4,Math.abs(x.g)/maxG*100)}%${x.g<0?';background:var(--red)':''}"></div>`).join('');
-    [...$('viewbars').children].forEach((b,i)=>hook(b,`${md(gains[i].d)}\n${gains[i].g>=0?'+':''}${fmt(gains[i].g)} views`));
-    $('viewbx').innerHTML=gains.map((x,i)=>`<span>${gains.length<15||i%3===0?md(x.d):''}</span>`).join('');
-  }else{
-    vw.innerHTML=`<div class="note" style="margin-top:0">${isIG?'Instagram photo posts have no public view counts — this chart fills in once she posts reels (or once the official Instagram connection is live).':'First bar appears tomorrow — this chart needs two daily snapshots to show a change.'}</div>`;
-  }
 
   // follower growth
   const hist=prof.history||[];
@@ -488,19 +537,40 @@ async function render(pk){
   });
   $('dailytbl').innerHTML=rows;
 
-  // heatmap (last ~24 weeks)
-  const hmWeeks=24;
-  const endDow=new Date(today+'T12:00:00Z').getUTCDay();
-  const cells=[];
-  const start=addDays(today,-(hmWeeks*7-1)-endDow);
-  for(let i=0;i<hmWeeks*7;i++){const d=addDays(start,i);if(d>today)break;cells.push(d)}
+  // heatmap. Rows are Mon..Sun top to bottom (the .hm-dows rail in the markup
+  // hard-codes that order), and the final column is the partial week ending on
+  // today — so `today` is always the last cell drawn.
+  const rowOf=d=>(new Date(d+'T12:00:00Z').getUTCDay()+6)%7;   // 0 = Monday
+  // window the grid to the catalog instead of always 24 weeks: IG's history
+  // starts in July, and 15 dead columns is not a chart.
+  const oldest=vids.length?dayOf(vids[vids.length-1].createTime):today;
+  const spanWeeks=Math.ceil((new Date(today)-new Date(oldest))/6048e5)+1;
+  const hmWeeks=Math.min(24,Math.max(12,spanWeeks));
+  const nCells=hmWeeks*7-(6-rowOf(today));
+  const cells=[...Array(nCells)].map((_,i)=>addDays(today,i-(nCells-1)));
   $('hmrange').textContent=`— ${md(cells[0])} to ${md(today)}`;
   $('hm').innerHTML=cells.map(d=>{
     const n=postCount[d]||0;
     const l=n===0?0:n===1?1:n===2?2:n<=4?3:4;
     return `<div class="c l${l}" data-d="${d}" data-n="${n}">${n||''}</div>`;
   }).join('');
-  [...$('hm').children].forEach(c=>hook(c,`${c.dataset.d}\n${c.dataset.n} post${c.dataset.n==='1'?'':'s'}`));
+  [...$('hm').children].forEach(c=>hook(c,`${longDay(c.dataset.d)}\n${c.dataset.n} post${c.dataset.n==='1'?'':'s'}`));
+  // month rail: label the first column of each month, but skip a month that
+  // owns a single column — a 3-char label needs ~2 columns of room, so a
+  // one-column month (the clipped one at either end) collides with its neighbour
+  const colMon=[...Array(Math.ceil(nCells/7))].map((_,c)=>+cells[c*7].slice(5,7));
+  const starts=[];
+  colMon.forEach((m,c)=>{if(!starts.length||starts[starts.length-1].m!==m)starts.push({m,c})});
+  const labelAt={};
+  starts.forEach((s,i)=>{
+    const next=starts[i+1];
+    // the crowded case is a clipped month at the LEFT edge (its label would sit
+    // on top of the next one). The last month has nothing to its right, so it
+    // always gets labelled even when it owns a single column.
+    if(!next||next.c-s.c>=2)labelAt[s.c]=MONTHS[s.m-1];
+  });
+  $('hmmonths').innerHTML=colMon.map((_,c)=>`<span>${labelAt[c]||''}</span>`).join('');
+  $('hmscroll').scrollLeft=$('hmscroll').scrollWidth;   // land on the recent weeks
 
   // video table
   let sortKey='createTime',sortDir=-1,showAll=false;
@@ -537,6 +607,21 @@ $('folchart').addEventListener('mousemove',e=>{
   if(i>=0&&i<hist.length){const h=hist[i];showTip(e,`${h.at.slice(0,16).replace('T',' ')} UTC\n${h.followers.toLocaleString()} followers`)}
 });
 $('folchart').addEventListener('mouseleave',hideTip);
+
+// ---------- top-posts carousel ----------
+// Arrows are a desktop affordance only (hidden under 820px, where the row is
+// swipeable); each one moves just under a viewport so a card is never skipped.
+function syncTopCarousel(){
+  const g=$('topgrid');
+  const max=g.scrollWidth-g.clientWidth-1;
+  $('topprev').disabled=g.scrollLeft<=0;
+  $('topnext').disabled=g.scrollLeft>=max;
+}
+$('topgrid').addEventListener('scroll',syncTopCarousel,{passive:true});
+addEventListener('resize',syncTopCarousel);
+const nudge=dir=>$('topgrid').scrollBy({left:dir*$('topgrid').clientWidth*.8,behavior:'smooth'});
+$('topprev').onclick=()=>nudge(-1);
+$('topnext').onclick=()=>nudge(1);
 // ---------- insights view ----------
 let _insP=null;
 function insightsData(){
